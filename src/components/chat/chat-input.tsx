@@ -7,9 +7,10 @@ interface ChatInputProps {
   disabled?: boolean;
   isFollowUp?: boolean;
   autoFocus?: boolean;
+  onStop?: () => void;
 }
 
-export function ChatInput({ onSubmit, disabled, isFollowUp, autoFocus }: ChatInputProps) {
+export function ChatInput({ onSubmit, disabled = false, isFollowUp = false, autoFocus = false, onStop }: ChatInputProps) {
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -43,6 +44,17 @@ export function ChatInput({ onSubmit, disabled, isFollowUp, autoFocus }: ChatInp
         )}
       />
       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+        {disabled && onStop && (
+          <button
+            type="button"
+            onClick={onStop}
+            className="p-2 text-red-500 hover:text-red-600 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="4" y="4" width="16" height="16" rx="2" />
+            </svg>
+          </button>
+        )}
         <button
           type="button"
           className="p-2 text-perplexity-muted hover:text-perplexity-text transition-colors"
@@ -62,17 +74,17 @@ export function ChatInput({ onSubmit, disabled, isFollowUp, autoFocus }: ChatInp
             <div className="absolute left-0.5 top-0.5 w-3 h-3 rounded-full bg-perplexity-muted"></div>
           </div>
           <span className="text-sm text-perplexity-muted">Pro</span>
-          <button
-            type="submit"
-            disabled={disabled || !input.trim()}
-            className="ml-1"
-          >
-            <ArrowRight className={cn(
-              "w-4 h-4 transition-colors",
-              input.trim() ? "text-perplexity-accent" : "text-perplexity-muted"
-            )} />
-          </button>
         </div>
+        <button
+          type="submit"
+          disabled={disabled || !input.trim()}
+          className="ml-1"
+        >
+          <ArrowRight className={cn(
+            "w-4 h-4 transition-colors",
+            input.trim() ? "text-perplexity-accent" : "text-perplexity-muted"
+          )} />
+        </button>
       </div>
     </form>
   );

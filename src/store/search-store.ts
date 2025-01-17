@@ -24,6 +24,7 @@ interface SearchState {
   theme: 'light' | 'dark';
   isSidebarCollapsed: boolean;
   addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void;
+  updateLastMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void;
   setLoading: (loading: boolean) => void;
   setSearchMode: (mode: SearchState['searchMode']) => void;
   toggleTheme: () => void;
@@ -48,6 +49,19 @@ export const useSearchStore = create<SearchState>()((set) => ({
         },
       ],
     })),
+  updateLastMessage: (message) =>
+    set((state) => {
+      const messages = [...state.messages];
+      if (messages.length > 0) {
+        const lastMessage = messages[messages.length - 1];
+        messages[messages.length - 1] = {
+          ...message,
+          id: lastMessage.id,
+          timestamp: lastMessage.timestamp,
+        };
+      }
+      return { messages };
+    }),
   setLoading: (loading) => set({ isLoading: loading }),
   setSearchMode: (mode) => set({ searchMode: mode }),
   toggleTheme: () =>

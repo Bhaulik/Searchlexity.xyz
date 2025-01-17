@@ -1,30 +1,37 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  darkMode: 'class',
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
+      },
       colors: {
-        perplexity: {
-          bg: '#1A1D1E',
-          card: '#242627',
-          hover: '#2F3133',
-          text: '#E5E7EB',
-          muted: '#9CA3AF',
-          accent: '#10A37F'
-        }
+        'perplexity-bg': '#0F0F0F',
+        'perplexity-card': '#1E1E1E',
+        'perplexity-hover': '#2C2C2C',
+        'perplexity-text': '#FFFFFF',
+        'perplexity-muted': '#888888',
+        'perplexity-accent': '#8C61FF',
+        'perplexity-primary': '#8C61FF',
+        'perplexity-primary-dark': '#7040FF',
       },
       animation: {
-        pulse: 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'fade-in': 'fadeIn 0.5s ease-out',
+        'fade-in': 'fade-in 0.5s ease-in-out',
+        'slow-fade-in': 'fade-in 1s ease-in-out',
       },
       keyframes: {
-        fadeIn: {
+        'fade-in': {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
         },
       },
     },
   },
-  plugins: [],
-};
+  plugins: [
+    require('@tailwindcss/typography'),
+  ],
+}
