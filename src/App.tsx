@@ -16,6 +16,61 @@ const openai = new OpenAI({
   dangerouslyAllowBrowser: true
 });
 
+const TAVILY_API_KEY = import.meta.env.VITE_TAVILY_API_KEY;
+
+if (!TAVILY_API_KEY) {
+  console.warn('VITE_TAVILY_API_KEY is not set in environment variables. Web search will be disabled.');
+}
+
+interface TavilySearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+  score: number;
+  published_date?: string;
+  domain: string;
+}
+
+async function searchWeb(query: string): Promise<TavilySearchResult[]> {
+  if (!TAVILY_API_KEY) {
+    console.warn('Tavily API key not found. Skipping web search.');
+    return [];
+  }
+
+  try {
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${TAVILY_API_KEY}`
+      },
+      body: JSON.stringify({
+        query,
+        search_depth: "advanced",
+        include_images: false,
+        include_answer: false,
+        max_results: 5
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error('Tavily API error details:', errorText);
+      throw new Error(`Tavily API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    if (!data.results || !Array.isArray(data.results)) {
+      console.warn('Invalid response format from Tavily API');
+      return [];
+    }
+    return data.results;
+  } catch (error) {
+    console.error('Error searching web:', error);
+    return [];
+  }
+}
+
 type Page = 'home' | 'discover' | 'spaces' | 'library';
 
 function App() {
@@ -76,11 +131,35 @@ function App() {
         related: []
       });
 
+      // Search the web first
+      let searchResults: TavilySearchResult[] = [];
+      let searchContext = '';
+      
+      try {
+        searchResults = await searchWeb(content);
+        if (searchResults.length > 0) {
+          searchContext = searchResults
+            .map(result => `[Source: ${result.title}]\n${result.snippet}\n`)
+            .join('\n');
+        }
+      } catch (searchError) {
+        console.error('Web search failed:', searchError);
+        // Continue without search results
+      }
+
       // Start both streams in parallel
       const [mainStream, relatedStream] = await Promise.all([
         openai.chat.completions.create({
           messages: [
-            { role: 'system', content: "You are a helpful assistant that provides clear and concise answers." },
+            { 
+              role: 'system', 
+              content: "You are a helpful assistant that provides clear and concise answers. " + 
+                      (searchResults.length > 0 ? "Use the search results provided to enhance your responses, and always cite your sources when using information from them." : "")
+            },
+            ...(searchContext ? [{
+              role: 'user' as const, 
+              content: `Search results for the query:\n\n${searchContext}\n\nUser question: ${content}`
+            }] : []),
             ...messages.map(msg => ({
               role: msg.type === 'user' ? 'user' : 'assistant',
               content: msg.content
@@ -199,7 +278,12 @@ function App() {
       const finalMessage = {
         type: 'assistant' as const,
         content: fullResponse,
-        sources: [],
+        sources: searchResults?.length > 0 ? searchResults.map(result => ({
+          id: result.url,
+          title: result.title,
+          url: result.url,
+          snippet: result.snippet
+        })) : [],
         related: relatedQuestions
       };
       
@@ -221,7 +305,7 @@ function App() {
       }
 
     } catch (error) {
-      console.error('Error calling OpenAI:', error);
+      console.error('Error:', error);
       addMessage({
         type: 'assistant',
         content: 'I apologize, but I encountered an error while processing your request. Please try again.',

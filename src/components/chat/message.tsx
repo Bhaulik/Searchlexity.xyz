@@ -78,27 +78,51 @@ export function Message({ content, type, sources = [], related = [], onRelatedCl
                 </svg>
                 <span className="text-[15px] font-medium tracking-[-0.01em] text-perplexity-text">Sources</span>
               </div>
-              <div className="grid gap-2">
-                {sources.map((source) => (
-                  <a
-                    key={source.id}
-                    href={source.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-start gap-3 p-3 rounded-xl bg-perplexity-card/50 hover:bg-perplexity-card transition-colors"
-                  >
-                    <div className="w-6 h-6 mt-0.5 flex-shrink-0">
-                      <img src={`https://www.google.com/s2/favicons?domain=${source.url}&sz=128`} className="w-full h-full rounded" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 mb-1">
-                        <span className="text-[15px] font-medium text-perplexity-accent truncate">{source.title}</span>
-                        <span className="text-xs text-perplexity-muted truncate">{new URL(source.url).hostname}</span>
+              <div className="md:grid md:gap-2 -mx-4 md:mx-0">
+                <div className="flex md:hidden overflow-x-auto px-4 gap-3 pb-2 scrollbar-none">
+                  {sources.map((source) => (
+                    <a
+                      key={source.id}
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-shrink-0 w-[280px] flex items-start gap-2 p-2 rounded-xl bg-perplexity-card/50 hover:bg-perplexity-card transition-colors"
+                    >
+                      <div className="w-5 h-5 mt-0.5 flex-shrink-0">
+                        <img src={`https://www.google.com/s2/favicons?domain=${source.url}&sz=128`} className="w-full h-full rounded" />
                       </div>
-                      <p className="text-sm text-perplexity-muted line-clamp-2">{source.snippet}</p>
-                    </div>
-                  </a>
-                ))}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-col gap-0.5 mb-1">
+                          <span className="text-sm font-medium text-perplexity-accent truncate">{source.title}</span>
+                          <span className="text-xs text-perplexity-muted truncate">{new URL(source.url).hostname}</span>
+                        </div>
+                        <p className="text-xs text-perplexity-muted line-clamp-2">{source.snippet}</p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+                <div className="hidden md:grid gap-2">
+                  {sources.map((source) => (
+                    <a
+                      key={source.id}
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-start gap-3 p-3 rounded-xl bg-perplexity-card/50 hover:bg-perplexity-card transition-colors"
+                    >
+                      <div className="w-6 h-6 mt-0.5 flex-shrink-0">
+                        <img src={`https://www.google.com/s2/favicons?domain=${source.url}&sz=128`} className="w-full h-full rounded" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-col gap-1 mb-1">
+                          <span className="text-[15px] font-medium text-perplexity-accent truncate">{source.title}</span>
+                          <span className="text-xs text-perplexity-muted truncate">{new URL(source.url).hostname}</span>
+                        </div>
+                        <p className="text-sm text-perplexity-muted line-clamp-2">{source.snippet}</p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
               </div>
             </div>
           )}
