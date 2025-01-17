@@ -1,7 +1,8 @@
 import React from 'react';
-import { Home, Search, FolderClosed, Library, Plus, KeyRound, ChevronLeft } from 'lucide-react';
+import { Home, Search, FolderClosed, Library, Plus, KeyRound, ChevronLeft, Globe } from 'lucide-react';
 import { useSearchStore } from '../store/search-store';
 import { cn } from '../lib/utils';
+import { motion } from 'framer-motion';
 
 type Page = 'home' | 'discover' | 'spaces' | 'library';
 
@@ -20,16 +21,24 @@ export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps
       isSidebarCollapsed ? "w-16" : "w-64"
     )}>
       <div className="p-4 flex items-center justify-between">
-        <button 
-          onClick={onNewThread}
-          className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-lg bg-perplexity-card hover:bg-perplexity-hover text-perplexity-text",
-            isSidebarCollapsed && "px-2"
+        <div className="flex items-center gap-2">
+          <motion.div
+            animate={{ 
+              rotate: 360,
+            }}
+            transition={{ 
+              duration: 20,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+            className="text-perplexity-accent"
+          >
+            <Globe className="w-6 h-6" />
+          </motion.div>
+          {!isSidebarCollapsed && (
+            <span className="font-semibold text-perplexity-text">Searchlexity.xyz</span>
           )}
-        >
-          <Plus className="w-4 h-4" />
-          {!isSidebarCollapsed && <span>New Thread</span>}
-        </button>
+        </div>
         <button
           onClick={toggleSidebar}
           className="p-2 hover:bg-perplexity-hover rounded-lg text-perplexity-muted"
@@ -40,6 +49,17 @@ export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps
           )} />
         </button>
       </div>
+
+      <button 
+        onClick={onNewThread}
+        className={cn(
+          "mx-4 mb-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-perplexity-card hover:bg-perplexity-hover text-perplexity-text",
+          isSidebarCollapsed && "px-2"
+        )}
+      >
+        <Plus className="w-4 h-4" />
+        {!isSidebarCollapsed && <span>New Thread</span>}
+      </button>
 
       <nav className="flex-1 px-2 space-y-1">
         <SidebarItem 

@@ -6,6 +6,8 @@ import { DiscoverPage } from './components/discover/discover-page';
 import { NewThreadDialog } from './components/new-thread-dialog';
 import { useSearchStore } from './store/search-store';
 import OpenAI from 'openai';
+import { motion, AnimatePresence } from "framer-motion";
+import { Globe } from 'lucide-react';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 const openai = new OpenAI({
@@ -244,14 +246,26 @@ function App() {
                     />
                   ))}
                   {isLoading && (
-                    <div className="flex gap-2 items-center text-perplexity-muted p-4">
-                      <div className="flex gap-1">
-                        <span>Thinking</span>
-                        <span className="animate-[bounce_1.4s_infinite_.1s]">.</span>
-                        <span className="animate-[bounce_1.4s_infinite_.2s]">.</span>
-                        <span className="animate-[bounce_1.4s_infinite_.3s]">.</span>
-                      </div>
-                    </div>
+                    <motion.div 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="flex justify-center p-4"
+                    >
+                      <motion.div
+                        animate={{ 
+                          rotate: 360,
+                        }}
+                        transition={{ 
+                          duration: 2,
+                          repeat: Infinity,
+                          ease: "linear"
+                        }}
+                        className="text-perplexity-text"
+                      >
+                        <Globe className="w-8 h-8" />
+                      </motion.div>
+                    </motion.div>
                   )}
                 </div>
               </div>
