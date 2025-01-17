@@ -38,17 +38,17 @@ export function ChatInput({ onSubmit, disabled = false, isFollowUp = false, auto
         disabled={disabled}
         placeholder={isFollowUp ? "Ask follow-up..." : "Ask anything..."}
         className={cn(
-          "w-full px-4 py-4 rounded-2xl bg-perplexity-card text-perplexity-text placeholder-perplexity-muted",
+          "w-full px-4 py-3 md:py-4 rounded-2xl bg-perplexity-card text-perplexity-text placeholder-perplexity-muted",
           "border border-transparent focus:border-perplexity-accent/20 focus:ring-1 focus:ring-perplexity-accent/20",
-          "transition-colors duration-200 text-lg"
+          "transition-colors duration-200 text-base md:text-lg"
         )}
       />
-      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 md:gap-2">
         {disabled && onStop && (
           <button
             type="button"
             onClick={onStop}
-            className="p-2 text-red-500 hover:text-red-600 transition-colors"
+            className="p-1.5 md:p-2 text-red-500 hover:text-red-600 transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <rect x="4" y="4" width="16" height="16" rx="2" />
@@ -57,18 +57,18 @@ export function ChatInput({ onSubmit, disabled = false, isFollowUp = false, auto
         )}
         <button
           type="button"
-          className="p-2 text-perplexity-muted hover:text-perplexity-text transition-colors"
+          className="p-1.5 md:p-2 text-perplexity-muted hover:text-perplexity-text transition-colors"
         >
           <Focus className="w-4 h-4" />
         </button>
         <button
           type="button"
-          className="p-2 text-perplexity-muted hover:text-perplexity-text transition-colors"
+          className="p-1.5 md:p-2 text-perplexity-muted hover:text-perplexity-text transition-colors"
         >
           <Paperclip className="w-4 h-4" />
         </button>
-        <div className="h-6 w-px bg-perplexity-card mx-1" />
-        <div className="flex items-center gap-1">
+        <div className="hidden md:block h-6 w-px bg-perplexity-card mx-1" />
+        <div className="hidden md:flex items-center gap-1">
           <div className="relative">
             <div className="w-8 h-4 rounded-full bg-perplexity-hover"></div>
             <div className="absolute left-0.5 top-0.5 w-3 h-3 rounded-full bg-perplexity-muted"></div>
