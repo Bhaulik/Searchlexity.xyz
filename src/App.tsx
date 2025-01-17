@@ -144,8 +144,15 @@ function App() {
         }
       } catch (searchError) {
         console.error('Web search failed:', searchError);
-        // Continue without search results
       }
+
+      // Get all previous messages for context
+      const conversationHistory = messages.slice(0, -1).map(msg => ({
+        role: msg.type === 'user' ? 'user' as const : 'assistant' as const,
+        content: msg.type === 'assistant' 
+          ? `${msg.content}${msg.sources?.length ? '\nSources used: ' + msg.sources.map(s => s.title).join(', ') : ''}`
+          : msg.content
+      }));
 
       // Start both streams in parallel
       const [mainStream, relatedStream] = await Promise.all([
@@ -154,17 +161,21 @@ function App() {
             { 
               role: 'system', 
               content: "You are a helpful assistant that provides clear and concise answers. " + 
+                      "Always maintain context from the previous conversation. If a follow-up question is asked, " +
+                      "relate it to the previous topic unless it's clearly about a new subject. " +
                       (searchResults.length > 0 ? "Use the search results provided to enhance your responses, and always cite your sources when using information from them." : "")
             },
+            ...conversationHistory,
             ...(searchContext ? [{
               role: 'user' as const, 
-              content: `Search results for the query:\n\n${searchContext}\n\nUser question: ${content}`
+              content: `New search results for your question:\n\n${searchContext}`
             }] : []),
-            ...messages.map(msg => ({
-              role: msg.type === 'user' ? 'user' : 'assistant',
-              content: msg.content
-            })) as ChatCompletionMessageParam[],
-            { role: 'user', content }
+            { 
+              role: 'user', 
+              content: messages.length > 0 
+                ? `Previous topic was about ${messages[0].content}. Follow-up question: ${content}`
+                : content 
+            }
           ],
           model: "gpt-4o-mini",
           stream: true,
@@ -175,14 +186,20 @@ function App() {
           messages: [
             { 
               role: 'system', 
-              content: "Generate 5 relevant follow-up questions based on the conversation. Respond with JSON." 
+              content: "Generate 5 relevant follow-up questions based on the entire conversation context. " +
+                      "Consider both the initial topic and any follow-up questions that were asked. Respond with JSON." 
             },
-            ...messages.map(msg => ({
-              role: msg.type === 'user' ? 'user' : 'assistant',
-              content: msg.content
-            })) as ChatCompletionMessageParam[],
-            { role: 'user', content },
-            { role: 'user', content: "Generate 5 follow-up questions about this topic. Respond with JSON." }
+            ...conversationHistory,
+            { 
+              role: 'user', 
+              content: messages.length > 0 
+                ? `Previous topic was about ${messages[0].content}. Follow-up question: ${content}`
+                : content 
+            },
+            { 
+              role: 'user', 
+              content: "Based on our entire conversation, generate 5 relevant follow-up questions. Make sure they relate to both the initial topic and any follow-ups if they're connected. Respond with JSON." 
+            }
           ],
           model: "gpt-4o-mini",
           stream: true,
@@ -192,13 +209,13 @@ function App() {
               type: "function",
               function: {
                 name: "get_related_questions",
-                description: "Get related follow-up questions",
+                description: "Get related follow-up questions based on conversation context",
                 parameters: {
                   type: "object", 
                   properties: {
                     questions: {
                       type: "array",
-                      description: "Array of 5 follow-up questions",
+                      description: "Array of 5 contextually relevant follow-up questions",
                       items: {
                         type: "string"
                       },
