@@ -145,7 +145,7 @@ export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps
                   <button
                     key={thread.id}
                     onClick={() => handleThreadClick(thread)}
-                    className="w-full text-left px-3 py-2.5 hover:bg-perplexity-hover/50 rounded-lg transition-colors group"
+                    className="w-full text-left px-4 py-2.5 hover:bg-perplexity-hover/50 rounded-lg transition-colors group ml-2"
                   >
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="text-sm text-perplexity-text group-hover:text-perplexity-accent font-medium truncate">
