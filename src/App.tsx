@@ -262,12 +262,32 @@ function App() {
         {currentPage === 'discover' ? (
           <DiscoverPage />
         ) : currentPage === 'home' && messages.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center p-4">
+          <div className="flex-1 flex items-center justify-center p-4 bg-gradient-to-b from-transparent to-perplexity-card/20">
             <div className="w-full max-w-2xl mx-auto space-y-8 px-4">
-              <h1 className="text-[40px] md:text-[56px] leading-[1.1] font-medium text-center">
-                What do you want to know?
-              </h1>
-              <ChatInput onSubmit={handleSubmit} disabled={isLoading} onStop={handleStop} />
+              <div className="space-y-4 text-center">
+                <motion.div
+                  animate={{ 
+                    rotate: 360,
+                  }}
+                  transition={{ 
+                    duration: 20,
+                    repeat: Infinity,
+                    ease: "linear"
+                  }}
+                  className="text-perplexity-accent inline-block"
+                >
+                  <Globe className="w-12 h-12 mx-auto mb-6" />
+                </motion.div>
+                <h1 className="text-[40px] md:text-[56px] leading-[1.1] font-medium bg-gradient-to-br from-perplexity-text to-perplexity-accent bg-clip-text text-transparent">
+                  What do you want to know?
+                </h1>
+                <p className="text-perplexity-muted text-lg">
+                  Ask anything. Get instant answers.
+                </p>
+              </div>
+              <div className="transform transition-all duration-300 hover:scale-[1.02]">
+                <ChatInput onSubmit={handleSubmit} disabled={isLoading} onStop={handleStop} />
+              </div>
             </div>
           </div>
         ) : (

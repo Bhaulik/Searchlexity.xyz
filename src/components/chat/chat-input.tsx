@@ -38,9 +38,11 @@ export function ChatInput({ onSubmit, disabled = false, isFollowUp = false, auto
         disabled={disabled}
         placeholder={isFollowUp ? "Ask follow-up..." : "Ask anything..."}
         className={cn(
-          "w-full px-4 py-3 md:py-4 rounded-2xl bg-perplexity-card text-perplexity-text placeholder-perplexity-muted",
-          "border border-transparent focus:border-perplexity-accent/20 focus:ring-1 focus:ring-perplexity-accent/20",
-          "transition-colors duration-200 text-base md:text-lg"
+          "w-full px-4 py-3.5 md:py-4 rounded-2xl bg-perplexity-card text-perplexity-text placeholder-perplexity-muted",
+          "border border-transparent focus:border-perplexity-accent/20 focus:ring-2 focus:ring-perplexity-accent/20",
+          "transition-all duration-200 text-base md:text-lg",
+          "shadow-lg shadow-perplexity-card/10",
+          disabled ? "bg-perplexity-card/50" : "hover:bg-perplexity-hover/50"
         )}
       />
       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 md:gap-2">
@@ -48,7 +50,7 @@ export function ChatInput({ onSubmit, disabled = false, isFollowUp = false, auto
           <button
             type="button"
             onClick={onStop}
-            className="p-1.5 md:p-2 text-red-500 hover:text-red-600 transition-colors"
+            className="p-1.5 md:p-2 text-red-500 hover:text-red-600 hover:bg-red-500/10 rounded-lg transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <rect x="4" y="4" width="16" height="16" rx="2" />
@@ -57,13 +59,13 @@ export function ChatInput({ onSubmit, disabled = false, isFollowUp = false, auto
         )}
         <button
           type="button"
-          className="p-1.5 md:p-2 text-perplexity-muted hover:text-perplexity-text transition-colors"
+          className="p-1.5 md:p-2 text-perplexity-muted hover:text-perplexity-text hover:bg-perplexity-hover rounded-lg transition-colors"
         >
           <Focus className="w-4 h-4" />
         </button>
         <button
           type="button"
-          className="p-1.5 md:p-2 text-perplexity-muted hover:text-perplexity-text transition-colors"
+          className="p-1.5 md:p-2 text-perplexity-muted hover:text-perplexity-text hover:bg-perplexity-hover rounded-lg transition-colors"
         >
           <Paperclip className="w-4 h-4" />
         </button>
@@ -78,7 +80,7 @@ export function ChatInput({ onSubmit, disabled = false, isFollowUp = false, auto
         <button
           type="submit"
           disabled={disabled || !input.trim()}
-          className="ml-1"
+          className="p-1.5 md:p-2 rounded-lg transition-all duration-200 hover:bg-perplexity-accent/10"
         >
           <ArrowRight className={cn(
             "w-4 h-4 transition-colors",
