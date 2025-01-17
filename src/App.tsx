@@ -9,6 +9,7 @@ import OpenAI from 'openai';
 import { motion, AnimatePresence } from "framer-motion";
 import { Globe } from 'lucide-react';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import { getRecentThreads, updateRecentThread } from './lib/utils';
 
 const openai = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,
@@ -18,11 +19,18 @@ const openai = new OpenAI({
 type Page = 'home' | 'discover' | 'spaces' | 'library';
 
 function App() {
-  const { messages, isLoading, addMessage, updateLastMessage, setLoading } = useSearchStore();
+  const { messages = [], isLoading, addMessage, updateLastMessage, setLoading } = useSearchStore(state => ({
+    messages: state.messages,
+    isLoading: state.isLoading,
+    addMessage: state.addMessage,
+    updateLastMessage: state.updateLastMessage,
+    setLoading: state.setLoading
+  }));
   const [lastQuery, setLastQuery] = useState('');
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [isNewThreadOpen, setIsNewThreadOpen] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
 
   const handleStop = () => {
     if (abortController) {
@@ -44,10 +52,20 @@ function App() {
     
     setLastQuery(content);
     setLoading(true);
-    addMessage({ 
-      type: 'user', 
-      content
-    });
+    
+    // Save initial message if this is a new thread
+    if (messages.length === 0) {
+      addMessage({ 
+        type: 'user', 
+        content
+      });
+    } else {
+      // For follow-up questions, add to existing thread
+      addMessage({ 
+        type: 'user', 
+        content
+      });
+    }
     
     try {
       // Add empty assistant message immediately
@@ -178,12 +196,29 @@ function App() {
       }
 
       // Final update with complete content and questions
-      updateLastMessage({
-        type: 'assistant',
+      const finalMessage = {
+        type: 'assistant' as const,
         content: fullResponse,
         sources: [],
         related: relatedQuestions
-      });
+      };
+      
+      updateLastMessage(finalMessage);
+
+      // Get all messages including the new ones
+      const allMessages = [
+        ...messages, // Include all existing messages
+        { type: 'user' as const, content },
+        finalMessage
+      ];
+
+      // Create new thread if none exists, otherwise update existing
+      if (!currentThreadId) {
+        const threads = updateRecentThread(null, content, allMessages);
+        setCurrentThreadId(threads[0].id);
+      } else {
+        updateRecentThread(currentThreadId, messages[0]?.content || content, allMessages);
+      }
 
     } catch (error) {
       console.error('Error calling OpenAI:', error);

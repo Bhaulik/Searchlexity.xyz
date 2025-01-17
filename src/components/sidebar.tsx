@@ -1,7 +1,7 @@
-import React from 'react';
-import { Home, Search, FolderClosed, Library, Plus, KeyRound, ChevronLeft, Globe } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Home, Search, FolderClosed, Library, Plus, KeyRound, ChevronLeft, Globe, Clock, Trash2 } from 'lucide-react';
 import { useSearchStore } from '../store/search-store';
-import { cn } from '../lib/utils';
+import { cn, getRecentThreads, clearRecentThreads } from '../lib/utils';
 import { motion } from 'framer-motion';
 
 type Page = 'home' | 'discover' | 'spaces' | 'library';
@@ -13,11 +13,36 @@ interface SidebarProps {
 }
 
 export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps) {
-  const { isSidebarCollapsed, toggleSidebar } = useSearchStore();
+  const { isSidebarCollapsed, toggleSidebar, setMessages, clearMessages } = useSearchStore();
+  const [recentThreads, setRecentThreads] = useState(getRecentThreads());
+
+  const handleThreadClick = (thread: ReturnType<typeof getRecentThreads>[0]) => {
+    onPageChange('home');
+    setMessages(thread.messages);
+  };
+
+  const handleClearHistory = () => {
+    clearRecentThreads();
+    setRecentThreads([]);
+    clearMessages();
+    onPageChange('home');
+  };
+
+  useEffect(() => {
+    // Update recent threads when component mounts
+    setRecentThreads(getRecentThreads());
+
+    // Set up interval to check for expired threads
+    const interval = setInterval(() => {
+      setRecentThreads(getRecentThreads());
+    }, 60000); // Check every minute
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className={cn(
-      "border-r border-perplexity-card flex flex-col transition-all duration-300",
+      "flex flex-col border-r border-perplexity-card h-full",
       isSidebarCollapsed ? "w-16" : "w-64"
     )}>
       <div className="p-4 flex items-center justify-between">
@@ -61,38 +86,94 @@ export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps
         {!isSidebarCollapsed && <span>New Thread</span>}
       </button>
 
-      <nav className="flex-1 px-2 space-y-1">
-        <SidebarItem 
-          icon={Home} 
-          label="Home" 
-          isActive={currentPage === 'home'}
-          onClick={() => onPageChange('home')}
-          collapsed={isSidebarCollapsed} 
-        />
-        <SidebarItem 
-          icon={Search} 
-          label="Discover" 
-          isActive={currentPage === 'discover'}
-          onClick={() => onPageChange('discover')}
-          collapsed={isSidebarCollapsed} 
-        />
-        <SidebarItem 
-          icon={FolderClosed} 
-          label="Spaces" 
-          isActive={currentPage === 'spaces'}
-          onClick={() => onPageChange('spaces')}
-          collapsed={isSidebarCollapsed} 
-        />
-        <SidebarItem 
-          icon={Library} 
-          label="Library" 
-          isActive={currentPage === 'library'}
-          onClick={() => onPageChange('library')}
-          collapsed={isSidebarCollapsed} 
-        />
-      </nav>
+      <div className="flex-1 flex flex-col min-h-0">
+        <nav className="flex-1 px-2 space-y-1 overflow-y-auto">
+          <SidebarItem 
+            icon={Home} 
+            label="Home" 
+            isActive={currentPage === 'home'}
+            onClick={() => onPageChange('home')}
+            collapsed={isSidebarCollapsed} 
+          />
+          <SidebarItem 
+            icon={Search} 
+            label="Discover" 
+            isActive={currentPage === 'discover'}
+            onClick={() => onPageChange('discover')}
+            collapsed={isSidebarCollapsed} 
+          />
+          <SidebarItem 
+            icon={FolderClosed} 
+            label="Spaces" 
+            isActive={currentPage === 'spaces'}
+            onClick={() => onPageChange('spaces')}
+            collapsed={isSidebarCollapsed} 
+          />
+          <SidebarItem 
+            icon={Library} 
+            label="Library" 
+            isActive={currentPage === 'library'}
+            onClick={() => onPageChange('library')}
+            collapsed={isSidebarCollapsed} 
+          />
 
-      <div className="p-4 border-t border-perplexity-card">
+          {recentThreads.length > 0 && !isSidebarCollapsed && (
+            <>
+              <div className="pt-4 pb-2">
+                <div className="px-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-perplexity-muted" />
+                    <span className="text-sm font-medium text-perplexity-muted">Recent</span>
+                  </div>
+                  <button
+                    onClick={handleClearHistory}
+                    className="p-1 hover:bg-perplexity-hover rounded text-perplexity-muted hover:text-red-500 transition-colors"
+                    title="Clear history"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              {recentThreads.map((thread) => {
+                // Get first user message for the title
+                const firstUserMessage = thread.messages.find(m => m.type === 'user')?.content || thread.title;
+                
+                // Get all messages for the thread
+                const messages = thread.messages;
+                
+                return (
+                  <button
+                    key={thread.id}
+                    onClick={() => handleThreadClick(thread)}
+                    className="w-full text-left px-3 py-2.5 hover:bg-perplexity-hover/50 rounded-lg transition-colors group"
+                  >
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="text-sm text-perplexity-text group-hover:text-perplexity-accent font-medium truncate">
+                        {firstUserMessage}
+                      </div>
+                      <div className="space-y-0.5">
+                        {messages.map((message, i) => (
+                          <div key={i} className="text-xs truncate">
+                            <span className={cn(
+                              "mr-1 font-medium",
+                              message.type === 'user' ? 'text-perplexity-accent' : 'text-perplexity-text'
+                            )}>
+                              {message.type === 'user' ? 'Q:' : 'A:'}
+                            </span>
+                            <span className="text-perplexity-muted">{message.content.substring(0, 60)}{message.content.length > 60 ? '...' : ''}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </>
+          )}
+        </nav>
+      </div>
+
+      <div className="p-4 border-t border-perplexity-card mt-auto">
         <button className={cn(
           "w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-perplexity-hover text-perplexity-muted",
           isSidebarCollapsed && "px-2 justify-center"
