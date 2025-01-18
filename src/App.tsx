@@ -31,9 +31,42 @@ interface TavilySearchResult {
   domain: string;
 }
 
+async function shouldPerformWebSearch(query: string): Promise<boolean> {
+  try {
+    const response = await openai.chat.completions.create({
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a tool that determines if a web search would be helpful for answering a query. Respond with true only if the query likely needs real-time or factual information that might not be in your training data.'
+        },
+        {
+          role: 'user',
+          content: `Query: "${query}"\nShould this query require a web search? Respond with just true or false.`
+        }
+      ],
+      model: "gpt-4o-mini",
+      temperature: 0,
+      max_tokens: 5
+    });
+    
+    const decision = response.choices[0]?.message?.content?.toLowerCase().includes('true') ?? false;
+    return decision;
+  } catch (error) {
+    console.error('Error determining search necessity:', error);
+    return true; // Default to searching if the check fails
+  }
+}
+
 async function searchWeb(query: string): Promise<TavilySearchResult[]> {
   if (!TAVILY_API_KEY) {
     console.warn('Tavily API key not found. Skipping web search.');
+    return [];
+  }
+
+  // First determine if we need to search
+  const needsSearch = await shouldPerformWebSearch(query);
+  if (!needsSearch) {
+    console.log('Web search deemed unnecessary for this query');
     return [];
   }
 
