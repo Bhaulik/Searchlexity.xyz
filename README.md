@@ -2,6 +2,8 @@
 
 A modern, extensible framework for building AI applications with seamless tool and LLM integration.
 <img width="1511" alt="image" src="https://github.com/user-attachments/assets/15932897-a0f7-4f3b-bbfb-34b6d59399f5" />
+<img width="1505" alt="image" src="https://github.com/user-attachments/assets/02ac33de-77e2-4bc2-86f5-6cec04051a63" />
+<img width="1509" alt="image" src="https://github.com/user-attachments/assets/1f8e70f8-af0c-4967-98b5-bba1e31deb56" />
 
 ## 🚀 Quick Start
 
