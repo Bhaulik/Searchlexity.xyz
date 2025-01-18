@@ -4,6 +4,7 @@ import { cn } from '../../lib/utils';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Message as MessageType, Source } from '../../types/message';
+import { openai, DEFAULT_MODEL } from '../../config/api-config';
 
 interface MessageProps {
   content: string;
@@ -37,6 +38,7 @@ export function Message({
   const messageRef = useRef<HTMLDivElement>(null);
   const [isFromRelated, setIsFromRelated] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isRewriting, setIsRewriting] = useState(false);
 
   useEffect(() => {
     if (messageRef.current) {
@@ -68,6 +70,50 @@ export function Message({
       setTimeout(() => setIsCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy text:', err);
+    }
+  };
+
+  const handleRewrite = async () => {
+    const isAssistantMessage = type === 'assistant' as const;
+    if (!isRewriting && isAssistantMessage) {
+      setIsRewriting(true);
+      try {
+        // First, get the original question from the previous message
+        const messageElement = messageRef.current?.previousElementSibling;
+        const questionElement = messageElement?.querySelector('h2');
+        const originalQuestion = questionElement?.textContent || '';
+
+        if (!originalQuestion) {
+          console.error('Could not find original question');
+          return;
+        }
+
+        // Step 1: Improve the prompt using LLM
+        const improvePromptResponse = await openai.chat.completions.create({
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert at improving questions and prompts to get better, more accurate answers. Your goal is to make questions more specific, detailed, and focused while maintaining the original intent. Add relevant context and clarify any ambiguities.'
+            },
+            {
+              role: 'user',
+              content: `Please improve this question to get a better answer. Make it more specific and detailed while maintaining the original intent: "${originalQuestion}"`
+            }
+          ],
+          model: DEFAULT_MODEL,
+          temperature: 0.7,
+        });
+        
+        const improvedPrompt = improvePromptResponse.choices[0]?.message?.content;
+        if (improvedPrompt) {
+          // Step 2: Use the improved prompt to get a new answer
+          onRelatedClick?.(improvedPrompt);
+        }
+      } catch (err) {
+        console.error('Failed to rewrite prompt:', err);
+      } finally {
+        setIsRewriting(false);
+      }
     }
   };
 
@@ -314,10 +360,19 @@ export function Message({
               <Share className="w-4 h-4" />
               <span className="text-sm">Share</span>
             </button>
-            <button className="flex items-center gap-2 hover:text-perplexity-text transition-colors">
-              <RotateCcw className="w-4 h-4" />
-              <span className="text-sm">Rewrite</span>
-            </button>
+            {(type as MessageProps['type']) === 'assistant' && (
+              <button 
+                onClick={handleRewrite}
+                disabled={isRewriting}
+                className={cn(
+                  "flex items-center gap-2 transition-colors",
+                  isRewriting ? "text-perplexity-muted" : "hover:text-perplexity-text"
+                )}
+              >
+                <RotateCcw className={cn("w-4 h-4", isRewriting && "animate-spin")} />
+                <span className="text-sm">{isRewriting ? "Rewriting..." : "Rewrite"}</span>
+              </button>
+            )}
             <button 
               onClick={handleCopy}
               className="flex items-center gap-2 hover:text-perplexity-text transition-colors"
