@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Share, RotateCcw, Copy, MoreHorizontal, Plus } from 'lucide-react';
+import { Share, RotateCcw, Copy, MoreHorizontal, Plus, Loader2, StopCircle } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -17,10 +17,30 @@ interface MessageProps {
     author?: string;
   }>;
   related?: string[];
+  steps?: Array<{
+    id: number;
+    description: string;
+    requires_search: boolean;
+    requires_tools: string[];
+    status?: 'pending' | 'loading' | 'complete';
+  }>;
   onRelatedClick?: (question: string) => void;
+  isLoading?: boolean;
+  onStop?: () => void;
+  isAgentMode?: boolean;
 }
 
-export function Message({ content, type, sources = [], related = [], onRelatedClick }: MessageProps) {
+export function Message({ 
+  content, 
+  type, 
+  sources = [], 
+  related = [], 
+  steps = [], 
+  onRelatedClick,
+  isLoading,
+  onStop,
+  isAgentMode
+}: MessageProps) {
   const messageRef = useRef<HTMLDivElement>(null);
   const [isFromRelated, setIsFromRelated] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -70,6 +90,80 @@ export function Message({ content, type, sources = [], related = [], onRelatedCl
         <h2 className="text-[32px] md:text-[40px] leading-[1.2] font-normal text-perplexity-text tracking-[-0.01em]">{content}</h2>
       ) : (
         <div className="space-y-4">
+          {/* Agent Steps */}
+          {isAgentMode && (
+            <div className="mb-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-perplexity-accent">
+                    <path d="M8 1.5V3M8 13V14.5M14.5 8H13M3 8H1.5M12.5 12.5L11.5 11.5M4.5 4.5L3.5 3.5M12.5 3.5L11.5 4.5M4.5 11.5L3.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                  <span className="text-[15px] font-medium tracking-[-0.01em] text-perplexity-text">Agent Progress</span>
+                </div>
+                {isLoading && onStop && (
+                  <button 
+                    onClick={onStop}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-perplexity-card/50 hover:bg-perplexity-card text-perplexity-muted hover:text-perplexity-text transition-colors"
+                  >
+                    <StopCircle className="w-4 h-4" />
+                    <span className="text-sm font-medium">Stop</span>
+                  </button>
+                )}
+              </div>
+              <div className="space-y-2">
+                {steps.map((step) => (
+                  <div 
+                    key={step.id}
+                    className={cn(
+                      "flex items-center gap-3 p-2 rounded-lg",
+                      step.status === 'loading' ? "bg-perplexity-card/50" : "bg-transparent"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-6 h-6 flex items-center justify-center rounded-full text-sm font-medium",
+                      step.status === 'complete' ? "bg-perplexity-accent/10 text-perplexity-accent" :
+                      step.status === 'loading' ? "bg-perplexity-card" :
+                      "bg-perplexity-card/30 text-perplexity-muted"
+                    )}>
+                      {step.status === 'loading' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        step.id
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className={cn(
+                        "font-medium",
+                        step.status === 'complete' ? "text-perplexity-accent" :
+                        step.status === 'loading' ? "text-perplexity-text" :
+                        "text-perplexity-muted"
+                      )}>
+                        {step.description}
+                      </div>
+                      {(step.requires_search || step.requires_tools.length > 0) && step.status === 'loading' && (
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {step.requires_search && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-perplexity-card text-perplexity-muted">
+                              Searching...
+                            </span>
+                          )}
+                          {step.requires_tools.map((tool) => (
+                            <span 
+                              key={tool}
+                              className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-perplexity-card text-perplexity-muted"
+                            >
+                              Using {tool}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {sources.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">

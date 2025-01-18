@@ -117,8 +117,8 @@ export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps
                 </div>
               </div>
               {recentThreads.map((thread) => {
-                const firstUserMessage = thread.messages.find(m => m.type === 'user')?.content || thread.title;
-                const messages = thread.messages;
+                const firstUserMessage = thread.messages?.find(m => m?.type === 'user')?.content || thread.title;
+                const messages = thread.messages || [];
                 
                 return (
                   <button
@@ -131,7 +131,7 @@ export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps
                         {firstUserMessage}
                       </div>
                       <div className="space-y-0.5">
-                        {messages.map((message, i) => (
+                        {messages.filter(Boolean).map((message, i) => (
                           <div key={i} className="text-xs truncate">
                             <span className={cn(
                               "mr-1 font-medium",
