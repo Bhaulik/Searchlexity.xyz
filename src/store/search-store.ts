@@ -4,35 +4,29 @@ import type { Message } from '../types/message';
 interface SearchState {
   messages: Message[];
   isLoading: boolean;
-  isSidebarCollapsed: boolean;
   isProMode: boolean;
+  selectedLanguage: string;
+  setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
   updateLastMessage: (message: Message) => void;
-  setLoading: (loading: boolean) => void;
-  toggleSidebar: () => void;
-  toggleProMode: () => void;
   clearMessages: () => void;
-  setMessages: (messages: Message[]) => void;
+  setLoading: (loading: boolean) => void;
+  toggleProMode: () => void;
+  setSelectedLanguage: (language: string) => void;
 }
 
 export const useSearchStore = create<SearchState>((set) => ({
   messages: [],
   isLoading: false,
-  isSidebarCollapsed: false,
   isProMode: false,
-  addMessage: (message) => set((state) => ({ 
-    messages: [...state.messages, message] 
-  })),
+  selectedLanguage: 'en',
+  setMessages: (messages) => set({ messages }),
+  addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
   updateLastMessage: (message) => set((state) => ({
     messages: [...state.messages.slice(0, -1), message]
   })),
-  setLoading: (loading) => set({ isLoading: loading }),
-  toggleSidebar: () => set((state) => ({ 
-    isSidebarCollapsed: !state.isSidebarCollapsed 
-  })),
-  toggleProMode: () => set((state) => ({
-    isProMode: !state.isProMode
-  })),
   clearMessages: () => set({ messages: [] }),
-  setMessages: (messages) => set({ messages })
+  setLoading: (loading) => set({ isLoading: loading }),
+  toggleProMode: () => set((state) => ({ isProMode: !state.isProMode })),
+  setSelectedLanguage: (language) => set({ selectedLanguage: language })
 }));

@@ -6,13 +6,13 @@ import type { ChatCompletionMessageParam } from 'openai/resources/chat/completio
 /**
  * Determines whether a web search is necessary for a given query
  */
-export async function shouldPerformWebSearch(query: string): Promise<boolean> {
+export async function shouldPerformWebSearch(query: string, language: string = 'en'): Promise<boolean> {
   try {
     const response = await openai.chat.completions.create({
       messages: [
         {
           role: 'system',
-          content: SYSTEM_PROMPTS.SEARCH_NECESSITY_CHECK
+          content: SYSTEM_PROMPTS.SEARCH_NECESSITY_CHECK(language)
         },
         {
           role: 'user',
@@ -144,26 +144,23 @@ export function formatSearchContext(results: TavilySearchResult[]): string {
  */
 export function createMainChatMessages(
   conversationHistory: ChatCompletionMessageParam[],
-  currentQuery: string,
-  searchContext?: string,
-  previousTopic?: string
+  query: string,
+  searchContext: string | null,
+  language: string
 ): ChatCompletionMessageParam[] {
   return [
-    {
-      role: 'system',
-      content: SYSTEM_PROMPTS.MAIN_ASSISTANT + 
-        (searchContext ? " Use the search results provided to enhance your responses, and always cite your sources when using information from them." : "")
+    { 
+      role: 'system', 
+      content: `${SYSTEM_PROMPTS.MAIN_ASSISTANT(language)}\n\nIMPORTANT: You MUST respond ONLY in ${language}. This is a strict requirement - do not use any other language under any circumstances. If you cannot provide an answer in ${language}, respond with an error message in ${language}.${searchContext ? "\n\nUse the search results provided to enhance your responses, and always cite your sources when using information from them." : ""}`
     },
     ...conversationHistory,
     ...(searchContext ? [{
       role: 'user' as const,
-      content: USER_PROMPTS.SEARCH_RESULTS(searchContext)
+      content: `Search Results:\n${searchContext}`
     }] : []),
     {
       role: 'user',
-      content: previousTopic
-        ? USER_PROMPTS.FOLLOW_UP(previousTopic, currentQuery)
-        : currentQuery
+      content: query
     }
   ];
 }
@@ -173,24 +170,21 @@ export function createMainChatMessages(
  */
 export function createRelatedQuestionsMessages(
   conversationHistory: ChatCompletionMessageParam[],
-  currentQuery: string,
-  previousTopic?: string
+  query: string,
+  previousTopic: string | undefined,
+  language: string
 ): ChatCompletionMessageParam[] {
   return [
     {
       role: 'system',
-      content: SYSTEM_PROMPTS.RELATED_QUESTIONS
+      content: `${SYSTEM_PROMPTS.RELATED_QUESTIONS(language)}\n\nIMPORTANT: You MUST generate all questions ONLY in ${language}. This is a strict requirement - do not use any other language under any circumstances.`
     },
     ...conversationHistory,
     {
       role: 'user',
-      content: previousTopic
-        ? USER_PROMPTS.FOLLOW_UP(previousTopic, currentQuery)
-        : currentQuery
-    },
-    {
-      role: 'user',
-      content: USER_PROMPTS.RELATED_QUESTIONS_REQUEST
+      content: previousTopic 
+        ? `Previous topic: ${previousTopic}\nNew question: ${query}`
+        : query
     }
   ];
 } 

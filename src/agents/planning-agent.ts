@@ -18,7 +18,9 @@ For each query, create a detailed plan with the following:
 1. Break down the query into sequential steps
 2. For each step, determine if it requires web search
 3. For each step, identify which tools might be needed
-4. Provide reasoning for the plan`;
+4. Provide reasoning for the plan
+
+Please provide your response in the specified language.`;
 
 export class PlanningAgent implements Agent {
   config: AgentConfig = {
@@ -31,8 +33,14 @@ export class PlanningAgent implements Agent {
     const openai = serviceManager.getOpenAIAPI();
     
     const response = await openai.createChatCompletion([
-      { role: 'system', content: this.config.systemPrompt },
-      { role: 'user', content: context.query }
+      { 
+        role: 'system', 
+        content: `${this.config.systemPrompt}\n\nIMPORTANT: Please provide your response in ${context.language || 'English'}.` 
+      },
+      { 
+        role: 'user', 
+        content: `Query: ${context.query}` 
+      }
     ], {
       tools: [{
         type: "function",
@@ -64,12 +72,7 @@ export class PlanningAgent implements Agent {
           }
         }
       }],
-      toolChoice: { type: "function", function: { name: "plan" } },
-      handlers: {
-        onToolCall: (chunk) => {
-        //   console.log('Tool call chunk:', chunk);
-        }
-      }
+      toolChoice: { type: "function", function: { name: "plan" } }
     });
 
     console.log('OpenAI Response:', {

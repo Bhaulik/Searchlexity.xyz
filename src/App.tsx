@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from "framer-motion";
 import { Globe, Sparkles } from 'lucide-react';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { cn } from './lib/utils';
 import type { Message, Source, AgentStep } from './types/message';
+import mixpanel from 'mixpanel-browser';
+import { ENABLE_ANALYTICS } from './config/api-config';
+import { SYSTEM_PROMPTS } from './config/prompts';
 
 // Components
 import { Message as MessageComponent } from './components/chat/message';
@@ -50,6 +53,7 @@ function App() {
     messages = [], 
     isLoading,
     isProMode,
+    selectedLanguage,
     addMessage, 
     updateLastMessage, 
     setLoading,
@@ -58,6 +62,7 @@ function App() {
     messages: state.messages,
     isLoading: state.isLoading,
     isProMode: state.isProMode,
+    selectedLanguage: state.selectedLanguage,
     addMessage: state.addMessage,
     updateLastMessage: state.updateLastMessage,
     setLoading: state.setLoading,
@@ -91,7 +96,16 @@ function App() {
    * Handles submission of new messages and manages the chat flow
    * @param content - The message content from the user
    */
-  const handleSubmit = async (content: string) => {
+  const handleSubmit = async (content: string, language: string) => {
+    if (ENABLE_ANALYTICS) {
+      mixpanel.track('Message Sent', {
+        message_length: content.length,
+        has_previous_messages: messages.length > 0,
+        language: language,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     // Abort any existing request
     if (state.abortController) {
       state.abortController.abort();
@@ -110,7 +124,10 @@ function App() {
     // Add user message to the chat
     addMessage({ 
       type: 'user', 
-      content
+      content,
+      sources: [],
+      related: [],
+      steps: []
     });
     
     try {
@@ -123,10 +140,10 @@ function App() {
           related: [],
           steps: [{
             id: 1,
-            description: "Planning the response",
+            description: `Planning response in ${language}`,
             requires_search: false,
-            requires_tools: [] as string[],
-            status: 'loading' as const
+            requires_tools: [],
+            status: 'loading'
           }]
         };
         addMessage(initialMessage);
@@ -146,26 +163,53 @@ function App() {
               related: [],
               steps: updatedSteps
             });
+          },
+          language
+        );
+
+        // Generate related questions
+        const relatedQuestionsResponse = await createChatCompletion(
+          [
+            { 
+              role: 'system', 
+              content: SYSTEM_PROMPTS.RELATED_QUESTIONS(language)
+            },
+            { 
+              role: 'user', 
+              content: `Generate 5 related questions for this topic and response:\n\nTopic: ${content}\n\nResponse: ${result.answer}` 
+            }
+          ],
+          {
+            tools: [TOOLS.RELATED_QUESTIONS.tool],
+            toolChoice: { type: "function", function: { name: TOOLS.RELATED_QUESTIONS.name } }
           }
         );
+
+        let relatedQuestions = [
+          "Tell me more about this topic",
+          "What are the main benefits?",
+          "Can you explain it differently?",
+          "What are some examples?",
+          "What are the limitations?"
+        ];
+
+        try {
+          if (relatedQuestionsResponse.toolCallResponse) {
+            const parsedResponse = JSON.parse(relatedQuestionsResponse.toolCallResponse);
+            if (parsedResponse?.questions && Array.isArray(parsedResponse.questions)) {
+              relatedQuestions = parsedResponse.questions;
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing related questions:', e);
+        }
 
         // Update the last message with the final result
         updateLastMessage({
           type: 'assistant',
           content: result.answer,
-          sources: result.sources.map(source => ({
-            id: source.url,
-            title: source.title,
-            url: source.url,
-            snippet: ''
-          })),
-          related: [
-            "Tell me more about this topic",
-            "What are the main benefits?",
-            "Can you explain it differently?",
-            "What are some examples?",
-            "What are the limitations?"
-          ],
+          sources: result.sources,
+          related: relatedQuestions,
           steps: result.steps
         });
 
@@ -184,20 +228,27 @@ function App() {
           type: 'assistant',
           content: '',
           sources: [],
-          related: []
+          related: [],
+          steps: []
         });
 
         // Use standard processing with streaming
         let searchResults = await searchWeb(content);
         let searchContext = searchResults.length > 0 ? formatSearchContext(searchResults) : '';
 
-        // Prepare conversation history
+        // Prepare conversation history with language context
         const conversationHistory = messages.slice(0, -1).map(msg => ({
           role: msg.type === 'user' ? 'user' as const : 'assistant' as const,
           content: msg.type === 'assistant' 
             ? `${msg.content}${msg.sources?.length ? '\nSources used: ' + msg.sources.map(s => s.title).join(', ') : ''}`
             : msg.content
         }));
+
+        // Add language instruction to system message
+        const systemMessage = {
+          role: 'system' as const,
+          content: `You are a helpful assistant. IMPORTANT: You must respond in ${language}. This is a strict requirement - all your responses should be in ${language} only. ${searchContext ? "Use the search results provided to enhance your responses, and always cite your sources when using information from them." : ""}`
+        };
 
         // Start both streams in parallel
         let lastUpdateTime = Date.now();
@@ -214,12 +265,23 @@ function App() {
         const [mainResponse, relatedResponse] = await Promise.all([
           // Main chat completion with streaming
           createChatCompletion(
-            createMainChatMessages(
-              conversationHistory,
-              content,
-              searchContext,
-              messages[0]?.content
-            ),
+            [
+              { 
+                role: 'system', 
+                content: `You are a helpful assistant. IMPORTANT: You must respond in ${language}. This is a strict requirement - all your responses should be in ${language} only. ${searchContext ? "Use the search results provided to enhance your responses, and always cite your sources when using information from them." : ""}`
+              },
+              ...conversationHistory,
+              ...(searchContext ? [{
+                role: 'user' as const,
+                content: `Search Results:\n${searchContext}`
+              }] : []),
+              {
+                role: 'user',
+                content: messages[0]?.content
+                  ? `Previous topic: ${messages[0].content}\nNew question: ${content}`
+                  : content
+              }
+            ],
             {
               handlers: {
                 onToken: (token) => {
@@ -234,7 +296,9 @@ function App() {
                         url: result.url,
                         snippet: result.snippet
                       })),
-                      related: relatedQuestions
+                      related: relatedQuestions,
+                      steps: [],
+                      language: language
                     });
                     lastUpdateTime = Date.now();
                   }
@@ -243,13 +307,20 @@ function App() {
             }
           ),
 
-          // Related questions completion
+          // Related questions completion with stronger language instruction
           createChatCompletion(
-            createRelatedQuestionsMessages(
-              conversationHistory,
-              content,
-              messages[0]?.content
-            ),
+            [
+              { 
+                role: 'system', 
+                content: `You are a helpful assistant. IMPORTANT: You must generate all questions in ${language} only. This is a strict requirement - do not use any other language.` 
+              },
+              ...createRelatedQuestionsMessages(
+                conversationHistory,
+                content,
+                messages[0]?.content,
+                language
+              )
+            ],
             {
               tools: [TOOLS.RELATED_QUESTIONS.tool],
               toolChoice: { type: "function", function: { name: TOOLS.RELATED_QUESTIONS.name } }
@@ -279,7 +350,8 @@ function App() {
             url: result.url,
             snippet: result.snippet
           })),
-          related: relatedQuestions
+          related: relatedQuestions,
+          steps: []
         });
 
         // Update thread history with complete messages
@@ -342,14 +414,25 @@ function App() {
         }));
         
         // Properly type and format the messages
-        const typedMessages = latestThread.messages.map(msg => ({
-          ...msg,
-          type: msg.type as 'user' | 'assistant',
-          sources: msg.sources || [],
-          related: msg.related || [],
-          steps: msg.steps || []
-        }));
-        
+        const typedMessages = latestThread.messages.map(msg => {
+          const baseMessage = {
+            ...msg,
+            type: msg.type as 'user' | 'assistant',
+            sources: msg.sources || [],
+            related: msg.related || []
+          };
+
+          // Add steps only if it's an agent message
+          if ('steps' in msg) {
+            return {
+              ...baseMessage,
+              steps: msg.steps || []
+            };
+          }
+
+          return baseMessage;
+        });
+
         useSearchStore.getState().setMessages(typedMessages);
       } else {
         useSearchStore.getState().clearMessages();
@@ -374,7 +457,15 @@ function App() {
    * @param question - The selected related question
    */
   const handleRelatedClick = (question: string) => {
-    handleSubmit(question);
+    if (ENABLE_ANALYTICS) {
+      mixpanel.track('Related Question Clicked', {
+        question,
+        previous_message: messages[messages.length - 2]?.content,
+        language: selectedLanguage,
+        timestamp: new Date().toISOString()
+      });
+    }
+    handleSubmit(question, selectedLanguage);
   };
 
   /**
@@ -383,6 +474,16 @@ function App() {
   const handleProModeToggle = () => {
     toggleProMode();
   };
+
+  // Track page view on component mount
+  useEffect(() => {
+    if (ENABLE_ANALYTICS) {
+      mixpanel.track('Page View', {
+        page: 'chat',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, []);
 
   return (
     <div className="flex h-screen bg-perplexity-bg text-perplexity-text">
@@ -443,7 +544,7 @@ function App() {
                       onRelatedClick={handleRelatedClick}
                       isLoading={isLoading}
                       onStop={handleStop}
-                      isAgentMode={isProMode && isLoading && index === messages.length - 1}
+                      isAgentMode={isProMode && message.type === 'assistant' && 'steps' in message}
                     />
                   ))}
                   {isLoading && (

@@ -1,25 +1,17 @@
-import { agentRegistry } from './agent-registry';
-import { PlanningAgent } from './planning-agent';
-import { SearchAgent } from './search-agent';
-import { ConsolidationAgent } from './consolidation-agent';
-import type { ConsolidatedResponse } from './consolidation-agent';
-import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-
-export interface AgentStep {
-  id: number;
-  description: string;
-  requires_search: boolean;
-  requires_tools: string[];
-  status: 'pending' | 'loading' | 'complete';
-}
-
-export type StepUpdateCallback = (steps: AgentStep[]) => void;
+import { SYSTEM_PROMPTS } from '../config/prompts';
+import type { AgentContext, AgentStep } from '../types/agent';
+import { BaseAgent } from './base-agent';
+import { WeatherAgent } from './weather-agent';
+import { MixpanelService } from '../services/analytics/mixpanel-service';
 
 export class AgentOrchestrator {
   private static instance: AgentOrchestrator;
-  private initialized = false;
+  private agents: Map<string, BaseAgent>;
+  private analytics: MixpanelService;
 
   private constructor() {
+    this.agents = new Map();
+    this.analytics = new MixpanelService();
     this.initializeAgents();
   }
 
@@ -31,108 +23,106 @@ export class AgentOrchestrator {
   }
 
   private initializeAgents() {
-    if (this.initialized) return;
-    
-    // Register all agents
-    agentRegistry.registerAgent(new PlanningAgent());
-    agentRegistry.registerAgent(new SearchAgent());
-    agentRegistry.registerAgent(new ConsolidationAgent());
-    
-    this.initialized = true;
+    // Initialize agents with language-aware system prompts
+    this.agents.set('weather', new WeatherAgent({
+      name: 'weather',
+      description: 'Gets current weather information for a location',
+      systemPrompt: (language: string) => SYSTEM_PROMPTS.AGENT_PLANNING(language)
+    }));
   }
 
-  async process(
+  public async process(
     query: string,
-    messages: ChatCompletionMessageParam[] = [],
-    onStepUpdate?: StepUpdateCallback
-  ): Promise<ConsolidatedResponse & { steps: AgentStep[] }> {
+    conversationHistory: Array<{ role: 'user' | 'assistant', content: string }>,
+    onStepUpdate: (steps: AgentStep[]) => void,
+    language: string
+  ) {
     try {
+      // Initialize steps with language-specific descriptions
       const steps: AgentStep[] = [
         {
           id: 1,
-          description: "Planning the response",
+          description: `Planning response in ${language}`,
           requires_search: false,
           requires_tools: [],
           status: 'loading'
         },
         {
           id: 2,
-          description: "Searching for relevant information",
+          description: `Searching for relevant information in ${language}`,
           requires_search: true,
           requires_tools: ['web_search'],
           status: 'pending'
         },
         {
           id: 3,
-          description: "Consolidating information and generating response",
+          description: `Consolidating information and generating response in ${language}`,
           requires_search: false,
           requires_tools: [],
           status: 'pending'
         }
       ];
 
-      // Initial steps
-      onStepUpdate?.(steps);
+      // Initial update
+      onStepUpdate([...steps]);
 
-      // Step 1: Planning
-      const planningAgent = agentRegistry.getAgent('planning_agent');
-      const plan = await planningAgent.execute({ query, messages });
-
-      steps[0].status = 'complete';
-      steps[1].status = 'loading';
-      onStepUpdate?.(steps);
-
-      // Step 2: Search (for steps that require it)
-      const searchAgent = agentRegistry.getAgent('search_agent');
-      const searchResults = [];
-
-      for (const step of plan.steps) {
-        if (step.requires_search) {
-          const stepResults = await searchAgent.execute({
-            query,
-            messages,
-            previousResults: step
-          });
-          searchResults.push(...stepResults);
-        }
-      }
-
-      steps[1].status = 'complete';
-      steps[2].status = 'loading';
-      onStepUpdate?.(steps);
-
-      // Step 3: Consolidation
-      const consolidationAgent = agentRegistry.getAgent('consolidation_agent');
-      const result = await consolidationAgent.execute({
-        query,
-        messages,
-        previousResults: {
-          plan,
-          searchResults
-        }
+      // Planning phase with language context
+      const planningAgent = new BaseAgent({
+        name: 'planner',
+        description: `Plans the execution of complex queries in ${language}`,
+        systemPrompt: (language: string) => `${SYSTEM_PROMPTS.AGENT_PLANNING(language)}\n\nIMPORTANT: You MUST plan the steps in ${language} only.`
       });
 
-      steps[2].status = 'complete';
-      onStepUpdate?.(steps);
+      const plan = await planningAgent.plan(query, language);
+      
+      // Update step status
+      steps[0].status = 'complete';
+      steps[1].status = 'loading';
+      onStepUpdate([...steps]);
 
+      // Search phase with language context
+      const searchAgent = new BaseAgent({
+        name: 'searcher',
+        description: `Generates focused search queries in ${language}`,
+        systemPrompt: (language: string) => `${SYSTEM_PROMPTS.AGENT_SEARCH(language)}\n\nIMPORTANT: You MUST generate search queries in ${language} only.`
+      });
+
+      const searchResults = await searchAgent.search(query, plan, language);
+      
+      // Update step status
+      steps[1].status = 'complete';
+      steps[2].status = 'loading';
+      onStepUpdate([...steps]);
+
+      // Consolidation phase with language context
+      const consolidationAgent = new BaseAgent({
+        name: 'consolidator',
+        description: `Combines information into comprehensive answers in ${language}`,
+        systemPrompt: (language: string) => `${SYSTEM_PROMPTS.AGENT_CONSOLIDATION(language)}\n\nIMPORTANT: You MUST provide the final answer in ${language} only.`
+      });
+
+      const result = await consolidationAgent.consolidate(
+        query,
+        plan,
+        searchResults,
+        language
+      );
+
+      // Update final step status
+      steps[2].status = 'complete';
+      onStepUpdate([...steps]);
+
+      // Return result with steps
       return {
-        ...result,
-        steps
+        answer: result.answer,
+        sources: result.sources,
+        confidence: result.confidence,
+        steps: steps
       };
+
     } catch (error) {
-      console.error('Agent orchestration error:', error);
-      return {
-        answer: 'I encountered an error while processing your request. Please try again.',
-        sources: [],
-        confidence: 0,
-        steps: [{
-          id: 1,
-          description: "Error occurred during processing",
-          requires_search: false,
-          requires_tools: [],
-          status: 'pending'
-        }]
-      };
+      console.error('Error in agent orchestration:', error);
+      throw error;
     }
   }
 } 

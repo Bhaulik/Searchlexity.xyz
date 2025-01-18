@@ -17,6 +17,7 @@ interface AgentStep {
 interface BaseMessage {
   type: 'user' | 'assistant';
   content: string;
+  language?: string;
 }
 
 interface RegularMessage extends BaseMessage {
