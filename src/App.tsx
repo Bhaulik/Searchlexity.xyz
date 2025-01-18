@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { motion } from "framer-motion";
 import { Globe, Sparkles } from 'lucide-react';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import { cn } from './lib/utils';
+import type { Message, Source, AgentStep } from './types/message';
 
 // Components
-import { Message } from './components/chat/message';
+import { Message as MessageComponent } from './components/chat/message';
 import { ChatInput } from './components/chat/chat-input';
 import { Sidebar } from './components/sidebar';
 import { DiscoverPage } from './components/discover/discover-page';
@@ -147,12 +149,9 @@ function App() {
           }
         );
 
-        // Get current messages without the last assistant message
-        const currentMessages = messages.slice(0, -1);
-
-        // Replace the loading message with final result
-        const finalMessage = {
-          type: 'assistant' as const,
+        // Update the last message with the final result
+        updateLastMessage({
+          type: 'assistant',
           content: result.answer,
           sources: result.sources.map(source => ({
             id: source.url,
@@ -168,28 +167,10 @@ function App() {
             "What are the limitations?"
           ],
           steps: result.steps
-        };
+        });
 
-        // Update messages with both user question and final answer
-        useSearchStore.getState().setMessages([
-          ...currentMessages,
-          { type: 'user', content },
-          finalMessage
-        ]);
-
-        // Update thread history with complete messages
-        const allMessages = [
-          ...messages.slice(0, -1),
-          { 
-            type: 'user' as const, 
-            content,
-            sources: [],
-            related: [],
-            steps: []
-          },
-          finalMessage
-        ];
-        
+        // Update thread history
+        const allMessages = [...messages];
         if (!state.currentThreadId) {
           const threads = updateRecentThread(null, content, allMessages);
           setState(prev => ({ ...prev, currentThreadId: threads[0].id }));
@@ -439,17 +420,6 @@ function App() {
                 <p className="text-perplexity-muted text-lg">
                   Ask anything. Get instant answers.
                 </p>
-                <button
-                  onClick={handleProModeToggle}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                    isProMode
-                      ? 'bg-perplexity-accent text-white'
-                      : 'bg-perplexity-card text-perplexity-muted hover:text-perplexity-text'
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Pro Mode {isProMode ? 'On' : 'Off'}
-                </button>
               </div>
               <div className="transform transition-all duration-300 hover:scale-[1.02]">
                 <ChatInput 
@@ -467,13 +437,13 @@ function App() {
               <div className="max-w-3xl mx-auto p-4 md:p-6">
                 <div className="space-y-6">
                   {messages.map((message, index) => (
-                    <Message 
+                    <MessageComponent 
                       key={index} 
                       {...message} 
                       onRelatedClick={handleRelatedClick}
                       isLoading={isLoading}
                       onStop={handleStop}
-                      isAgentMode={isProMode}
+                      isAgentMode={isProMode && isLoading && index === messages.length - 1}
                     />
                   ))}
                   {isLoading && (
@@ -497,23 +467,6 @@ function App() {
                     </motion.div>
                   )}
                 </div>
-              </div>
-            </div>
-
-            {/* Pro Mode Toggle */}
-            <div className="sticky top-0 z-10 bg-perplexity-bg border-b border-perplexity-card p-2">
-              <div className="max-w-3xl mx-auto flex justify-end">
-                <button
-                  onClick={handleProModeToggle}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                    isProMode
-                      ? 'bg-perplexity-accent text-white'
-                      : 'bg-perplexity-card text-perplexity-muted hover:text-perplexity-text'
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Pro Mode {isProMode ? 'On' : 'Off'}
-                </button>
               </div>
             </div>
 

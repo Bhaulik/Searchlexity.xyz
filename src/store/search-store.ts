@@ -1,24 +1,5 @@
 import { create } from 'zustand';
-
-interface Message {
-  type: 'user' | 'assistant';
-  content: string;
-  sources?: Array<{
-    id: string;
-    title: string;
-    url: string;
-    snippet: string;
-    author?: string;
-  }>;
-  related?: string[];
-  steps?: Array<{
-    id: number;
-    description: string;
-    requires_search: boolean;
-    requires_tools: string[];
-    status?: 'pending' | 'loading' | 'complete';
-  }>;
-}
+import type { Message } from '../types/message';
 
 interface SearchState {
   messages: Message[];

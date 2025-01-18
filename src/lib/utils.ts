@@ -1,21 +1,9 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import type { Message } from '../types/message';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
-}
-
-interface Message {
-  type: 'user' | 'assistant';
-  content: string;
-  sources?: Array<{
-    id: string;
-    title: string;
-    url: string;
-    snippet: string;
-    author?: string;
-  }>;
-  related?: string[];
 }
 
 interface RecentThread {

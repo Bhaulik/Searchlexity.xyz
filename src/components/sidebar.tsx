@@ -3,6 +3,7 @@ import { Home, Search, Plus, ChevronLeft, Globe, Clock, Trash2 } from 'lucide-re
 import { useSearchStore } from '../store/search-store';
 import { cn, getRecentThreads, clearRecentThreads } from '../lib/utils';
 import { motion } from 'framer-motion';
+import type { Message } from '../types/message';
 
 type Page = 'home' | 'discover';
 
@@ -12,22 +13,22 @@ interface SidebarProps {
   onNewThread: () => void;
 }
 
+interface RecentThread {
+  id: string;
+  title: string;
+  messages: Message[];
+}
+
 export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps) {
   const { isSidebarCollapsed, toggleSidebar, setMessages, clearMessages } = useSearchStore();
   const [recentThreads, setRecentThreads] = useState(getRecentThreads());
 
-  const handleThreadClick = (thread: { id: string; title: string; messages: any[] }) => {
+  const handleThreadClick = (thread: RecentThread) => {
     clearMessages();
     
-    const typedMessages = thread.messages.map(msg => ({
-      ...msg,
-      type: msg.type as 'user' | 'assistant',
-      sources: msg.sources || [],
-      related: msg.related || [],
-      steps: msg.steps || []
-    }));
-    
-    setMessages(typedMessages);
+    // Simply pass through the messages as they are stored
+    // They are already typed as Message[] from localStorage
+    setMessages(thread.messages);
     onPageChange('home');
   };
 

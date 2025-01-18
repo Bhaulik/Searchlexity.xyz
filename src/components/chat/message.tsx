@@ -3,19 +3,12 @@ import { Share, RotateCcw, Copy, MoreHorizontal, Plus, Loader2, StopCircle } fro
 import { cn } from '../../lib/utils';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-
-type MessageType = 'user' | 'assistant';
+import type { Message as MessageType, Source } from '../../types/message';
 
 interface MessageProps {
   content: string;
-  type: MessageType;
-  sources?: Array<{
-    id: string;
-    title: string;
-    url: string;
-    snippet: string;
-    author?: string;
-  }>;
+  type: 'user' | 'assistant';
+  sources?: Source[];
   related?: string[];
   steps?: Array<{
     id: number;
@@ -35,7 +28,7 @@ export function Message({
   type, 
   sources = [], 
   related = [], 
-  steps = [], 
+  steps = [],
   onRelatedClick,
   isLoading,
   onStop,
@@ -91,7 +84,7 @@ export function Message({
       ) : (
         <div className="space-y-4">
           {/* Agent Steps */}
-          {isAgentMode && (
+          {isAgentMode && steps.length > 0 && (
             <div className="mb-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -164,6 +157,7 @@ export function Message({
             </div>
           )}
 
+          {/* Sources */}
           {sources.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
@@ -221,6 +215,7 @@ export function Message({
             </div>
           )}
 
+          {/* Answer */}
           <div className="flex items-center gap-2">
             <div className="w-6 h-6">
               <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="text-perplexity-accent">
@@ -280,6 +275,7 @@ export function Message({
             </ReactMarkdown>
           </div>
 
+          {/* Actions */}
           <div className="flex flex-wrap items-center gap-4 text-perplexity-muted mt-2">
             <button className="flex items-center gap-2 hover:text-perplexity-text transition-colors">
               <Share className="w-4 h-4" />
@@ -302,8 +298,9 @@ export function Message({
               </button>
             </div>
           </div>
-          
-          {related.length > 0 && (
+
+          {/* Related Questions - Only show when message is complete */}
+          {related.length > 0 && !isLoading && (
             <div className="-mx-4 md:-mx-6 mt-6">
               <div className="flex items-center gap-2 px-4 md:px-6 py-3 border-t border-perplexity-card">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-perplexity-muted">
