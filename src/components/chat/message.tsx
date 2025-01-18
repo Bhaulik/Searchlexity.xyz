@@ -239,19 +239,52 @@ export function Message({
                 ),
                 code: ({ node, inline, className, children, ...props }: any) => {
                   const match = /language-(\w+)/.exec(className || '');
+                  const codeText = Array.isArray(children) ? children.join('') : children;
+                  
+                  if (inline) {
+                    return (
+                      <code 
+                        className="bg-perplexity-card px-1.5 py-0.5 rounded text-perplexity-accent text-[14px] md:text-[15px] font-normal"
+                        {...props}
+                      >
+                        {children}
+                      </code>
+                    );
+                  }
+
+                  const handleCopyCode = async () => {
+                    try {
+                      await navigator.clipboard.writeText(codeText);
+                      const button = document.activeElement as HTMLButtonElement;
+                      if (button) {
+                        button.innerText = "Copied!";
+                        setTimeout(() => {
+                          button.innerText = "Copy";
+                        }, 2000);
+                      }
+                    } catch (err) {
+                      console.error('Failed to copy code:', err);
+                    }
+                  };
+
                   return (
-                    <code 
-                      className={cn(
-                        "text-[14px] md:text-[15px] font-normal",
-                        inline 
-                          ? "bg-perplexity-card px-1.5 py-0.5 rounded text-perplexity-accent" 
-                          : "block bg-perplexity-card p-4 rounded-lg overflow-x-auto",
-                        className
-                      )}
-                      {...props}
-                    >
-                      {children}
-                    </code>
+                    <div className="relative group">
+                      <button
+                        onClick={handleCopyCode}
+                        className="absolute right-2 top-2 px-2 py-1 text-xs font-medium bg-perplexity-card/50 hover:bg-perplexity-card text-perplexity-muted hover:text-perplexity-text rounded transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        Copy
+                      </button>
+                      <code 
+                        className={cn(
+                          "text-[14px] md:text-[15px] font-normal block bg-perplexity-card p-4 rounded-lg overflow-x-auto",
+                          className
+                        )}
+                        {...props}
+                      >
+                        {children}
+                      </code>
+                    </div>
                   );
                 },
                 p: ({ node, ...props }) => (
