@@ -285,18 +285,17 @@ export function Message({
               <RotateCcw className="w-4 h-4" />
               <span className="text-sm">Rewrite</span>
             </button>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={handleCopy}
-                className="hover:text-perplexity-text transition-colors"
-                title={isCopied ? "Copied!" : "Copy to clipboard"}
-              >
-                <Copy className="w-4 h-4" />
-              </button>
-              <button className="hover:text-perplexity-text transition-colors">
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-            </div>
+            <button 
+              onClick={handleCopy}
+              className="flex items-center gap-2 hover:text-perplexity-text transition-colors"
+              title={isCopied ? "Copied!" : "Copy to clipboard"}
+            >
+              <Copy className="w-4 h-4" />
+              <span className="text-sm">{isCopied ? "Copied!" : "Copy"}</span>
+            </button>
+            <button className="hover:text-perplexity-text transition-colors">
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Related Questions - Only show when message is complete */}
