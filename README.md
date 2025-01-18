@@ -866,3 +866,155 @@ furnished to do so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software. 
+
+## 🤖 Agents
+
+The framework supports building custom agents that can orchestrate multiple tools and provide step-by-step feedback on their progress.
+
+### Creating a Custom Agent
+
+```typescript
+// src/agents/custom-agent.ts
+export class CustomAgent {
+  private tools: Record<string, any>;
+  private steps: AgentStep[] = [];
+
+  constructor(tools: Record<string, any>) {
+    this.tools = tools;
+  }
+
+  async process(
+    query: string,
+    history: Array<{ role: 'user' | 'assistant'; content: string }>,
+    onStepsUpdate?: (steps: AgentStep[]) => void
+  ): Promise<AgentResult> {
+    // Initialize steps
+    this.steps = [{
+      id: 1,
+      description: "Planning the response",
+      requires_search: false,
+      requires_tools: [],
+      status: 'loading'
+    }];
+    onStepsUpdate?.(this.steps);
+
+    try {
+      // Execute steps and update progress
+      const result = await this.executeSteps(query);
+      return {
+        answer: result.answer,
+        sources: result.sources,
+        steps: this.steps
+      };
+    } catch (error) {
+      // Handle errors and update step status
+      this.handleError(error);
+      throw error;
+    }
+  }
+}
+```
+
+### Agent Features
+
+1. **Step-by-Step Progress**
+   - Real-time updates on agent progress
+   - Visual feedback for each step
+   - Error handling and status tracking
+
+2. **Tool Orchestration**
+   - Dynamically select and use appropriate tools
+   - Chain multiple tools together
+   - Handle tool dependencies
+
+3. **State Management**
+   - Track conversation history
+   - Maintain context between steps
+   - Handle intermediate results
+
+### Example Usage
+
+```typescript
+const agent = new CustomAgent({
+  search: searchAPI,
+  calculator: calculatorAPI,
+  weather: weatherAPI
+});
+
+// Process a query with progress updates
+const result = await agent.process(
+  "What's the weather like and how does it affect solar panel efficiency?",
+  previousMessages,
+  (steps) => {
+    // Update UI with current progress
+    updateProgressUI(steps);
+  }
+);
+```
+
+### Agent Architecture
+
+```
+┌─────────────────┐     ┌──────────────┐     ┌────────────────┐
+│     Agent       │     │    Tools     │     │    Services    │
+│  Orchestrator   │────▶│  Registry    │────▶│  - Search      │
+└─────────────────┘     └──────────────┘     │  - Calculator  │
+         │                                    │  - Weather     │
+         │                                    └────────────────┘
+         ▼
+┌─────────────────┐
+│     Steps       │
+│  - Planning     │
+│  - Research     │
+│  - Tool Usage   │
+│  - Response     │
+└─────────────────┘
+```
+
+### Pro Mode Features
+
+The framework includes a "Pro Mode" that enables advanced agent capabilities:
+
+1. **Enhanced Planning**
+   - Multi-step reasoning
+   - Tool selection optimization
+   - Context-aware processing
+
+2. **Advanced Tool Usage**
+   - Parallel tool execution
+   - Tool result synthesis
+   - Error recovery strategies
+
+3. **Detailed Progress**
+   - Step-by-step explanations
+   - Tool usage tracking
+   - Source attribution
+
+## 🛠️ Tool Examples
+
+### Basic Calculator
+
+
+### Weather Tool
+The framework includes a weather tool that demonstrates integration with the Open-Meteo API:
+
+```typescript
+const weatherAPI = new WeatherAPI();
+
+// Get current weather
+const weather = await weatherAPI.getWeather(52.52, 13.41);
+console.log(`Temperature: ${weather.current.temperature}°C`);
+
+// Get weather with forecast
+const forecast = await weatherAPI.getWeather(52.52, 13.41, true);
+console.log(`Temperature range: ${forecast.forecast.temperature.min}°C to ${forecast.forecast.temperature.max}°C`);
+```
+
+Features:
+- Current weather conditions
+- Hourly forecasts
+- Temperature, humidity, and wind speed data
+- Statistical analysis of forecast data
+- No API key required
+``` 
+</rewritten_file> 
