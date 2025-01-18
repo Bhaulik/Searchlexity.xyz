@@ -18,7 +18,9 @@ Do not include detailed explanations or context in the query itself.
 
 Example:
 Original: "I need to find detailed information about how photosynthesis works in plants, specifically the light-dependent reactions and how they convert solar energy into chemical energy in the chloroplasts"
-Search query: "photosynthesis light-dependent reactions energy conversion process"`;
+Search query: "photosynthesis light-dependent reactions energy conversion process"
+
+Please generate the search query in the specified language.`;
 
 export class SearchAgent implements Agent {
   config: AgentConfig = {
@@ -34,8 +36,14 @@ export class SearchAgent implements Agent {
     
     // Generate focused search query
     const queryResponse = await openai.createChatCompletion([
-      { role: 'system', content: this.config.systemPrompt },
-      { role: 'user', content: `Original query: ${context.query}\nStep: ${step.description}` }
+      { 
+        role: 'system', 
+        content: `${this.config.systemPrompt}\n\nIMPORTANT: Please generate the search query in ${context.language || 'English'}.` 
+      },
+      { 
+        role: 'user', 
+        content: `Original query: ${context.query}\nStep: ${step.description}` 
+      }
     ]);
 
     // Ensure query is within limits
@@ -44,8 +52,10 @@ export class SearchAgent implements Agent {
       .slice(0, 400); // Enforce Tavily's limit
     
     try {
-      // Perform search
-      const searchResults = await tavily.search(searchQuery);
+      // Perform search with language preference
+      const searchResults = await tavily.search(searchQuery, {
+        language: context.language || 'en'
+      });
       
       return [{
         query: searchQuery,

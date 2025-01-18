@@ -24,6 +24,15 @@ interface MessageProps {
   isAgentMode?: boolean;
 }
 
+function isValidUrl(urlString: string): boolean {
+  try {
+    new URL(urlString);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 export function Message({ 
   content, 
   type, 
@@ -73,6 +82,9 @@ export function Message({
       console.error('Failed to copy text:', err);
     }
   };
+
+  // Filter and validate sources before rendering
+  const validSources = sources.filter(source => source.url && isValidUrl(source.url));
 
   const handleRewrite = async () => {
     const isAssistantMessage = type === 'assistant' as const;
@@ -235,7 +247,7 @@ export function Message({
           )}
 
           {/* Sources */}
-          {sources.length > 0 && (
+          {validSources.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-perplexity-muted">
@@ -245,7 +257,7 @@ export function Message({
               </div>
               <div className="md:grid md:gap-2 -mx-4 md:mx-0">
                 <div className="flex md:hidden overflow-x-auto px-4 gap-3 pb-2 scrollbar-none">
-                  {sources.map((source) => (
+                  {validSources.map((source) => (
                     <a
                       key={source.id}
                       href={source.url}
@@ -267,7 +279,7 @@ export function Message({
                   ))}
                 </div>
                 <div className="hidden md:grid gap-2">
-                  {sources.map((source) => (
+                  {validSources.map((source) => (
                     <a
                       key={source.id}
                       href={source.url}

@@ -11,6 +11,7 @@ export interface AgentContext {
   messages: ChatCompletionMessageParam[];
   query: string;
   previousResults?: any;
+  language?: string;
 }
 
 export interface Agent {

@@ -20,6 +20,8 @@ Your task is to:
 4. Cite sources appropriately
 5. Assess confidence in the answer (0-1)
 
+Please provide your response in the specified language.
+
 Format your response as JSON:
 {
   "answer": "detailed answer with inline citations [1], [2], etc.",
@@ -47,8 +49,14 @@ export class ConsolidationAgent implements Agent {
       .join('\n\n');
 
     const response = await openai.createChatCompletion([
-      { role: 'system', content: this.config.systemPrompt },
-      { role: 'user', content: `Original query: ${context.query}\n\nPlan:\n${JSON.stringify(plan, null, 2)}\n\nSearch Results:\n${searchContext}` }
+      { 
+        role: 'system', 
+        content: `${this.config.systemPrompt}\n\nIMPORTANT: Please provide your response in ${context.language || 'English'}.` 
+      },
+      { 
+        role: 'user', 
+        content: `Original query: ${context.query}\n\nPlan:\n${JSON.stringify(plan, null, 2)}\n\nSearch Results:\n${searchContext}` 
+      }
     ]);
 
     try {
