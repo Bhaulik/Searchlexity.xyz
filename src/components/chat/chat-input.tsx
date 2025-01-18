@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Focus, Paperclip, ArrowRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useSearchStore } from '../../store/search-store';
 
 interface ChatInputProps {
   onSubmit: (message: string) => void;
@@ -13,6 +14,7 @@ interface ChatInputProps {
 export function ChatInput({ onSubmit, disabled = false, isFollowUp = false, autoFocus = false, onStop }: ChatInputProps) {
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const { isProMode, toggleProMode } = useSearchStore();
 
   useEffect(() => {
     if (autoFocus && inputRef.current) {
@@ -70,13 +72,25 @@ export function ChatInput({ onSubmit, disabled = false, isFollowUp = false, auto
           <Paperclip className="w-4 h-4" />
         </button>
         <div className="hidden md:block h-6 w-px bg-perplexity-card mx-1" />
-        <div className="hidden md:flex items-center gap-1">
+        <button
+          type="button"
+          onClick={toggleProMode}
+          className="hidden md:flex items-center gap-1"
+        >
           <div className="relative">
             <div className="w-8 h-4 rounded-full bg-perplexity-hover"></div>
-            <div className="absolute left-0.5 top-0.5 w-3 h-3 rounded-full bg-perplexity-muted"></div>
+            <div className={cn(
+              "absolute top-0.5 w-3 h-3 rounded-full transition-all duration-200",
+              isProMode 
+                ? "left-[calc(100%-14px)] bg-perplexity-accent" 
+                : "left-0.5 bg-perplexity-muted"
+            )}></div>
           </div>
-          <span className="text-sm text-perplexity-muted">Pro</span>
-        </div>
+          <span className={cn(
+            "text-sm transition-colors",
+            isProMode ? "text-perplexity-accent" : "text-perplexity-muted"
+          )}>Pro</span>
+        </button>
         <button
           type="submit"
           disabled={disabled || !input.trim()}

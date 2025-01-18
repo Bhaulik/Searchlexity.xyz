@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Home, Search, FolderClosed, Library, Plus, KeyRound, ChevronLeft, Globe, Clock, Trash2 } from 'lucide-react';
+import { Home, Search, Plus, ChevronLeft, Globe, Clock, Trash2 } from 'lucide-react';
 import { useSearchStore } from '../store/search-store';
 import { cn, getRecentThreads, clearRecentThreads } from '../lib/utils';
 import { motion } from 'framer-motion';
+import type { Message } from '../types/message';
 
-type Page = 'home' | 'discover' | 'spaces' | 'library';
+type Page = 'home' | 'discover';
 
 interface SidebarProps {
   currentPage: Page;
@@ -12,13 +13,23 @@ interface SidebarProps {
   onNewThread: () => void;
 }
 
+interface RecentThread {
+  id: string;
+  title: string;
+  messages: Message[];
+}
+
 export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps) {
   const { isSidebarCollapsed, toggleSidebar, setMessages, clearMessages } = useSearchStore();
   const [recentThreads, setRecentThreads] = useState(getRecentThreads());
 
-  const handleThreadClick = (thread: ReturnType<typeof getRecentThreads>[0]) => {
-    onPageChange('home');
+  const handleThreadClick = (thread: RecentThread) => {
+    clearMessages();
+    
+    // Simply pass through the messages as they are stored
+    // They are already typed as Message[] from localStorage
     setMessages(thread.messages);
+    onPageChange('home');
   };
 
   const handleClearHistory = () => {
@@ -29,14 +40,13 @@ export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps
   };
 
   useEffect(() => {
-    // Update recent threads when component mounts
-    setRecentThreads(getRecentThreads());
-
-    // Set up interval to check for expired threads
-    const interval = setInterval(() => {
+    const updateThreads = () => {
       setRecentThreads(getRecentThreads());
-    }, 60000); // Check every minute
+    };
 
+    updateThreads();
+
+    const interval = setInterval(updateThreads, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -102,22 +112,8 @@ export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps
             onClick={() => onPageChange('discover')}
             collapsed={isSidebarCollapsed} 
           />
-          <SidebarItem 
-            icon={FolderClosed} 
-            label="Spaces" 
-            isActive={currentPage === 'spaces'}
-            onClick={() => onPageChange('spaces')}
-            collapsed={isSidebarCollapsed} 
-          />
-          <SidebarItem 
-            icon={Library} 
-            label="Library" 
-            isActive={currentPage === 'library'}
-            onClick={() => onPageChange('library')}
-            collapsed={isSidebarCollapsed} 
-          />
 
-          {recentThreads.length > 0 && !isSidebarCollapsed && (
+          {recentThreads.length > 0 && !isSidebarCollapsed && currentPage === 'home' && (
             <>
               <div className="pt-4 pb-2">
                 <div className="px-3 flex items-center justify-between">
@@ -135,11 +131,8 @@ export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps
                 </div>
               </div>
               {recentThreads.map((thread) => {
-                // Get first user message for the title
-                const firstUserMessage = thread.messages.find(m => m.type === 'user')?.content || thread.title;
-                
-                // Get all messages for the thread
-                const messages = thread.messages;
+                const firstUserMessage = thread.messages?.find(m => m?.type === 'user')?.content || thread.title;
+                const messages = thread.messages || [];
                 
                 return (
                   <button
@@ -152,7 +145,7 @@ export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps
                         {firstUserMessage}
                       </div>
                       <div className="space-y-0.5">
-                        {messages.map((message, i) => (
+                        {messages.filter(Boolean).map((message, i) => (
                           <div key={i} className="text-xs truncate">
                             <span className={cn(
                               "mr-1 font-medium",
@@ -171,16 +164,6 @@ export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps
             </>
           )}
         </nav>
-      </div>
-
-      <div className="p-4 border-t border-perplexity-card mt-auto">
-        <button className={cn(
-          "w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-perplexity-hover text-perplexity-muted",
-          isSidebarCollapsed && "px-2 justify-center"
-        )}>
-          <KeyRound className="w-4 h-4" />
-          {!isSidebarCollapsed && <span>Try Pro</span>}
-        </button>
       </div>
     </div>
   );
