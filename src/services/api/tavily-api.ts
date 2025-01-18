@@ -8,6 +8,7 @@ export interface TavilySearchResult {
   score: number;
   published_date?: string;
   domain: string;
+  image_url?: string;
 }
 
 export interface TavilySearchOptions {

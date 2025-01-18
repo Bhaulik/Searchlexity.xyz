@@ -1,5 +1,6 @@
 import { OpenAIAPI } from './api/openai-api';
 import { TavilyAPI } from './api/tavily-api';
+import { NewsAPI } from './api/news-api';
 import { toolRegistry } from './tools/tool-registry';
 import { RELATED_QUESTIONS_TOOL } from './tools/related-questions-tool';
 import { MATH_TOOL } from './tools/math-tool';
@@ -16,43 +17,58 @@ import { MathAPI } from './api/math-api';
  * 5. Add getter methods for your service
  */
 class ServiceManager {
-  private openaiAPI: OpenAIAPI;
-  private tavilyAPI: TavilyAPI;
-  private mathAPI: MathAPI;
+  private static instance: ServiceManager;
+  private openaiAPI: OpenAIAPI = new OpenAIAPI();
+  private tavilyAPI: TavilyAPI = new TavilyAPI();
+  private mathAPI: MathAPI = new MathAPI();
+  private newsAPI: NewsAPI = new NewsAPI();
+  private initialized = false;
 
   constructor() {
+    // Singleton pattern
+    if (ServiceManager.instance) {
+      return ServiceManager.instance;
+    }
+    ServiceManager.instance = this;
+
+    this.initializeServices();
+  }
+
+  private initializeServices() {
+    if (this.initialized) return;
+
     console.info('[Service Manager] Initializing services...');
-
-    // Initialize core APIs
-    this.openaiAPI = new OpenAIAPI();
-    this.tavilyAPI = new TavilyAPI();
-    this.mathAPI = new MathAPI();
-
     console.info('[Service Manager] Core APIs initialized');
 
     // Register tool categories
     console.debug('[Service Manager] Registering tool categories...');
 
-    toolRegistry.registerCategory(
-      'conversation',
-      'Tools for managing conversation flow and context'
-    );
+    try {
+      toolRegistry.registerCategory(
+        'conversation',
+        'Tools for managing conversation flow and context'
+      );
 
-    toolRegistry.registerCategory(
-      'math',
-      'Tools for performing mathematical calculations'
-    );
+      toolRegistry.registerCategory(
+        'math',
+        'Tools for performing mathematical calculations'
+      );
 
-    console.debug('[Service Manager] Tool categories registered');
+      console.debug('[Service Manager] Tool categories registered');
 
-    // Register tools
-    console.debug('[Service Manager] Registering tools...');
+      // Register tools
+      console.debug('[Service Manager] Registering tools...');
 
-    toolRegistry.registerTool('conversation', RELATED_QUESTIONS_TOOL);
-    toolRegistry.registerTool('math', MATH_TOOL);
+      toolRegistry.registerTool('conversation', RELATED_QUESTIONS_TOOL);
+      toolRegistry.registerTool('math', MATH_TOOL);
 
-    console.debug('[Service Manager] Tools registered');
-    console.info('[Service Manager] Service initialization complete');
+      console.debug('[Service Manager] Tools registered');
+      console.info('[Service Manager] Service initialization complete');
+    } catch (error) {
+      console.warn('[Service Manager] Some categories were already registered:', error);
+    }
+
+    this.initialized = true;
   }
 
   // Getter methods for core services
@@ -66,6 +82,10 @@ class ServiceManager {
 
   getMathAPI(): MathAPI {
     return this.mathAPI;
+  }
+
+  getNewsAPI(): NewsAPI {
+    return this.newsAPI;
   }
 
   getToolRegistry() {

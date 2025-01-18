@@ -1,105 +1,205 @@
-import React from 'react';
-import { Bookmark } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Newspaper, Briefcase, Globe, Microscope, Film, Gamepad, Heart, DollarSign } from 'lucide-react';
+import { cn } from '../../lib/utils';
+import { serviceManager } from '../../services/service-manager';
+import type { NewsArticle } from '../../services/api/news-api';
 
-interface Article {
-  id: string;
-  title: string;
-  description: string;
-  imageUrl: string;
-  author: {
-    name: string;
-    avatar: string;
-  };
-}
+export const NEWS_CATEGORIES = [
+  { id: 'general', label: 'General', icon: Newspaper },
+  { id: 'business', label: 'Business', icon: Briefcase },
+  { id: 'world', label: 'World', icon: Globe },
+  { id: 'science', label: 'Science', icon: Microscope },
+  { id: 'entertainment', label: 'Entertainment', icon: Film },
+  { id: 'gaming', label: 'Gaming', icon: Gamepad },
+  { id: 'health', label: 'Health', icon: Heart },
+  { id: 'finance', label: 'Finance', icon: DollarSign },
+] as const;
 
-const articles: Article[] = [
-  {
-    id: '1',
-    title: "Ralph Lauren's Historic Honor",
-    description: "According to Harper's BAZAAR, Ralph Lauren made history on January 4, 2025, when President Joe Biden awarded him the Presidential Medal of Freedom, marking the first time a fashion designer has received this prestigious honor.",
-    imageUrl: "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&q=80",
-    author: {
-      name: "mikeharb",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=mikeharb"
-    }
-  },
-  {
-    id: '2',
-    title: "NFL Playoff Schedule 2025",
-    description: "As reported by ESPN, the 2025 NFL playoffs are set to begin with Wild Card Weekend featuring six games across three days.",
-    imageUrl: "https://images.unsplash.com/photo-1566577739112-5180d4bf9390?auto=format&fit=crop&q=80",
-    author: {
-      name: "mikeharb",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=mikeharb"
-    }
-  },
-  {
-    id: '3',
-    title: "NY's Climate Museum Finds Home",
-    description: "The Climate Museum, the first U.S. museum dedicated to climate change, has found a permanent home in New York City.",
-    imageUrl: "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&q=80",
-    author: {
-      name: "stephenhob",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=stephenhob"
-    }
-  }
-];
+type CategoryId = typeof NEWS_CATEGORIES[number]['id'];
+
+type CategoryNews = {
+  [K in CategoryId]: NewsArticle[];
+};
+
+type FetchTimes = {
+  [K in CategoryId]?: number;
+};
+
+// Rate limit: 1 request per category per minute
+const RATE_LIMIT_MS = 60 * 1000;
+const INITIAL_CATEGORY: CategoryId = 'general';
+
+// Keep news cache in memory between tab switches
+const globalNewsCache: Partial<CategoryNews> = {};
+const globalFetchTimes: FetchTimes = {};
 
 export function DiscoverPage() {
+  const [selectedCategory, setSelectedCategory] = useState<CategoryId>(INITIAL_CATEGORY);
+  const [newsCache, setNewsCache] = useState<Partial<CategoryNews>>(globalNewsCache);
+  const [isLoading, setIsLoading] = useState(!globalNewsCache[INITIAL_CATEGORY]);
+  const [lastFetchTimes, setLastFetchTimes] = useState<FetchTimes>(globalFetchTimes);
+
+  const loadCategoryNews = useCallback(async (categoryId: CategoryId) => {
+    const now = Date.now();
+    const lastFetch = lastFetchTimes[categoryId] || 0;
+    
+    // Check rate limit and cache
+    if (now - lastFetch < RATE_LIMIT_MS && newsCache[categoryId]?.length) {
+      return;
+    }
+
+    setIsLoading(true);
+    const newsApi = serviceManager.getNewsAPI();
+    
+    try {
+      const articles = await newsApi.getNewsByCategory(categoryId);
+      const updatedCache = {
+        ...newsCache,
+        [categoryId]: articles
+      };
+      setNewsCache(updatedCache);
+      Object.assign(globalNewsCache, updatedCache);
+
+      const updatedFetchTimes = {
+        ...lastFetchTimes,
+        [categoryId]: now
+      };
+      setLastFetchTimes(updatedFetchTimes);
+      Object.assign(globalFetchTimes, updatedFetchTimes);
+    } catch (error) {
+      console.error(`Error loading ${categoryId} news:`, error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [lastFetchTimes, newsCache]);
+
+  // Load initial category if not cached
+  useEffect(() => {
+    if (!newsCache[INITIAL_CATEGORY]?.length) {
+      loadCategoryNews(INITIAL_CATEGORY);
+    }
+
+    // Refresh initial category every 5 minutes if tab is active
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadCategoryNews(INITIAL_CATEGORY);
+      }
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [loadCategoryNews, newsCache]);
+
+  // Load selected category if needed
+  useEffect(() => {
+    if (selectedCategory !== INITIAL_CATEGORY && !newsCache[selectedCategory]?.length) {
+      loadCategoryNews(selectedCategory);
+    }
+  }, [selectedCategory, loadCategoryNews, newsCache]);
+
+  const handleCategorySelect = (categoryId: CategoryId) => {
+    setSelectedCategory(categoryId);
+    if (!newsCache[categoryId]?.length) {
+      loadCategoryNews(categoryId);
+    }
+  };
+
+  const currentArticles = newsCache[selectedCategory] || [];
+
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 overflow-auto">
-      <div className="flex items-center justify-between mb-8 sticky top-0 bg-perplexity-bg z-10 py-2">
-        <h1 className="text-2xl font-semibold">Discover</h1>
-        <div className="flex gap-4 overflow-x-auto hide-scrollbar">
-          <button className="px-4 py-2 rounded-lg bg-perplexity-card hover:bg-perplexity-hover text-perplexity-text whitespace-nowrap">
-            For You
-          </button>
-          <button className="px-4 py-2 rounded-lg hover:bg-perplexity-hover text-perplexity-muted whitespace-nowrap">
-            Top
-          </button>
-          <button className="px-4 py-2 rounded-lg hover:bg-perplexity-hover text-perplexity-muted whitespace-nowrap">
-            Tech & Science
-          </button>
-          <button className="px-4 py-2 rounded-lg hover:bg-perplexity-hover text-perplexity-muted whitespace-nowrap">
-            Finance
-          </button>
-          <button className="px-4 py-2 rounded-lg hover:bg-perplexity-hover text-perplexity-muted whitespace-nowrap">
-            Arts & Culture
-          </button>
-          <button className="px-4 py-2 rounded-lg hover:bg-perplexity-hover text-perplexity-muted whitespace-nowrap">
-            Sports
-          </button>
+    <div className="flex-1 overflow-hidden flex flex-col">
+      {/* Categories Header */}
+      <div className="border-b border-perplexity-card">
+        <div className="flex items-center gap-2 px-4 py-2 overflow-x-auto">
+          {NEWS_CATEGORIES.map((category) => {
+            const Icon = category.icon;
+            const isSelected = selectedCategory === category.id;
+
+            return (
+              <button
+                key={category.id}
+                onClick={() => handleCategorySelect(category.id)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors",
+                  isSelected 
+                    ? "bg-perplexity-card text-perplexity-text" 
+                    : "text-perplexity-muted hover:bg-perplexity-hover"
+                )}
+                disabled={isLoading && isSelected}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{category.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
-        {articles.map((article) => (
-          <article key={article.id} className="bg-perplexity-card rounded-lg overflow-hidden">
-            <div className="aspect-[2/1] relative">
-              <img 
-                src={article.imageUrl} 
-                alt={article.title}
-                className="w-full h-full object-cover"
-              />
-              <button className="absolute top-4 right-4 p-2 rounded-lg bg-perplexity-bg/80 hover:bg-perplexity-bg text-perplexity-muted">
-                <Bookmark className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-6">
-              <h2 className="text-xl font-semibold mb-2 line-clamp-2">{article.title}</h2>
-              <p className="text-perplexity-muted mb-4 line-clamp-2">{article.description}</p>
-              <div className="flex items-center gap-2">
-                <img 
-                  src={article.author.avatar}
-                  alt={article.author.name}
-                  className="w-6 h-6 rounded-full"
-                />
-                <span className="text-sm text-perplexity-muted">{article.author.name}</span>
+      {/* Articles Grid */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {isLoading && !currentArticles.length ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="bg-perplexity-card animate-pulse rounded-lg overflow-hidden">
+                <div className="aspect-video bg-perplexity-hover"></div>
+                <div className="p-4 space-y-3">
+                  <div className="h-6 bg-perplexity-hover rounded"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 bg-perplexity-hover rounded w-5/6"></div>
+                    <div className="h-4 bg-perplexity-hover rounded w-4/6"></div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </article>
-        ))}
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {currentArticles.map((article: NewsArticle) => (
+              <a
+                key={article.url}
+                href={article.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group bg-perplexity-card rounded-lg overflow-hidden hover:ring-1 hover:ring-perplexity-accent transition-all"
+              >
+                <div className="aspect-video w-full overflow-hidden bg-perplexity-hover">
+                  {article.imageUrl ? (
+                    <img 
+                      src={article.imageUrl} 
+                      alt={article.imageDescription || article.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-perplexity-muted">
+                      <Icon category={selectedCategory} className="w-8 h-8" />
+                    </div>
+                  )}
+                </div>
+                <div className="p-4">
+                  <h3 className="font-medium text-perplexity-text group-hover:text-perplexity-accent mb-2">
+                    {article.title}
+                  </h3>
+                  <p className="text-sm text-perplexity-muted line-clamp-3">
+                    {article.snippet}
+                  </p>
+                  <div className="mt-4 flex items-center justify-between text-xs text-perplexity-muted">
+                    <span>{article.domain}</span>
+                    {article.published_date && (
+                      <span>{new Date(article.published_date).toLocaleDateString()}</span>
+                    )}
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+// Helper component for category icons
+function Icon({ category, className }: { category: CategoryId; className?: string }) {
+  const categoryConfig = NEWS_CATEGORIES.find(c => c.id === category);
+  const IconComponent = categoryConfig?.icon || Newspaper;
+  return <IconComponent className={className} />;
 }
