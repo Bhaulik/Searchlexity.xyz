@@ -1,136 +1,32 @@
 import React, { useState } from 'react';
-import OpenAI from 'openai';
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Globe } from 'lucide-react';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
+// Components
 import { Message } from './components/chat/message';
 import { ChatInput } from './components/chat/chat-input';
 import { Sidebar } from './components/sidebar';
 import { DiscoverPage } from './components/discover/discover-page';
 import { NewThreadDialog } from './components/new-thread-dialog';
 
+// Store and utilities
 import { useSearchStore } from './store/search-store';
 import { getRecentThreads, updateRecentThread } from './lib/utils';
 
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true
-});
-
-const TAVILY_API_KEY = import.meta.env.VITE_TAVILY_API_KEY;
-
-if (!TAVILY_API_KEY) {
-  console.warn('VITE_TAVILY_API_KEY is not set in environment variables. Web search will be disabled.');
-}
-
-interface TavilySearchResult {
-  title: string;
-  url: string;
-  snippet: string;
-  score: number;
-  published_date?: string;
-  domain: string;
-}
+// Services and configuration
+import { UPDATE_INTERVAL } from './config/api-config';
+import { TOOLS } from './services/tool-service';
+import { 
+  searchWeb, 
+  formatSearchContext,
+  createChatCompletion,
+  createMainChatMessages,
+  createRelatedQuestionsMessages
+} from './services/llm-service';
+import type { SearchSource } from './services/tool-service';
 
 type Page = 'home' | 'discover' | 'spaces' | 'library';
-
-interface WebSearchOptions {
-  search_depth?: "basic" | "advanced";
-  include_images?: boolean;
-  include_answer?: boolean;
-  max_results?: number;
-}
-
-/**
- * Determines whether a web search is necessary for a given query
- * Uses GPT to analyze if the query requires real-time or factual information
- * @param query - The user's search query
- * @returns Promise<boolean> - Whether a web search should be performed
- */
-async function shouldPerformWebSearch(query: string): Promise<boolean> {
-  try {
-    const response = await openai.chat.completions.create({
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a tool that determines if a web search would be helpful for answering a query. Respond with true only if the query likely needs real-time or factual information that might not be in your training data.'
-        },
-        {
-          role: 'user',
-          content: `Query: "${query}"\nShould this query require a web search? Respond with just true or false.`
-        }
-      ],
-      model: "gpt-4o-mini",
-      temperature: 0,
-      max_tokens: 5
-    });
-    
-    const decision = response.choices[0]?.message?.content?.toLowerCase().includes('true') ?? false;
-    return decision;
-  } catch (error) {
-    console.error('Error determining search necessity:', error);
-    return true; // Default to searching if the check fails
-  }
-}
-
-/**
- * Performs a web search using the Tavily API
- * @param query - The search query
- * @param options - Optional search configuration
- * @returns Promise<TavilySearchResult[]> - Array of search results
- */
-async function searchWeb(
-  query: string, 
-  options: WebSearchOptions = {
-    search_depth: "advanced",
-    include_images: false,
-    include_answer: false,
-    max_results: 5
-  }
-): Promise<TavilySearchResult[]> {
-  if (!TAVILY_API_KEY) {
-    console.warn('Tavily API key not found. Skipping web search.');
-    return [];
-  }
-
-  // First determine if we need to search
-  const needsSearch = await shouldPerformWebSearch(query);
-  if (!needsSearch) {
-    console.log('Web search deemed unnecessary for this query');
-    return [];
-  }
-
-  try {
-    const response = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${TAVILY_API_KEY}`
-      },
-      body: JSON.stringify({
-        query,
-        ...options
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unknown error');
-      console.error('Tavily API error details:', errorText);
-      throw new Error(`Tavily API error: ${response.status} - ${errorText}`);
-    }
-
-    const data = await response.json();
-    if (!data.results || !Array.isArray(data.results)) {
-      console.warn('Invalid response format from Tavily API');
-      return [];
-    }
-    return data.results;
-  } catch (error) {
-    console.error('Error searching web:', error);
-    return [];
-  }
-}
 
 interface AppState {
   lastQuery: string;
@@ -206,7 +102,7 @@ function App() {
     });
     
     try {
-      // Add empty assistant message immediately for streaming
+      // Add empty assistant message for streaming
       addMessage({
         type: 'assistant',
         content: '',
@@ -215,21 +111,10 @@ function App() {
       });
 
       // Search the web if needed
-      let searchResults: TavilySearchResult[] = [];
-      let searchContext = '';
-      
-      try {
-        searchResults = await searchWeb(content);
-        if (searchResults.length > 0) {
-          searchContext = searchResults
-            .map(result => `[Source: ${result.title}]\n${result.snippet}\n`)
-            .join('\n');
-        }
-      } catch (searchError) {
-        console.error('Web search failed:', searchError);
-      }
+      let searchResults = await searchWeb(content);
+      let searchContext = searchResults.length > 0 ? formatSearchContext(searchResults) : '';
 
-      // Prepare conversation history for context
+      // Prepare conversation history
       const conversationHistory = messages.slice(0, -1).map(msg => ({
         role: msg.type === 'user' ? 'user' as const : 'assistant' as const,
         content: msg.type === 'assistant' 
@@ -237,126 +122,9 @@ function App() {
           : msg.content
       }));
 
-      // Start both streams in parallel for efficiency
-      const [mainStream, relatedStream] = await Promise.all([
-        // Main response stream for the answer
-        openai.chat.completions.create({
-          messages: [
-            { 
-              role: 'system', 
-              content: "You are a helpful assistant that provides clear and concise answers. " + 
-                      "Always maintain context from the previous conversation. If a follow-up question is asked, " +
-                      "relate it to the previous topic unless it's clearly about a new subject. " +
-                      (searchResults.length > 0 ? "Use the search results provided to enhance your responses, and always cite your sources when using information from them." : "")
-            },
-            ...conversationHistory,
-            ...(searchContext ? [{
-              role: 'user' as const, 
-              content: `New search results for your question:\n\n${searchContext}`
-            }] : []),
-            { 
-              role: 'user', 
-              content: messages.length > 0 
-                ? `Previous topic was about ${messages[0].content}. Follow-up question: ${content}`
-                : content 
-            }
-          ],
-          model: "gpt-4o-mini",
-          stream: true,
-        }, {
-          signal: controller.signal
-        }),
-
-        // Related questions stream
-        openai.chat.completions.create({
-          messages: [
-            { 
-              role: 'system', 
-              content: "Generate 5 relevant follow-up questions based on the entire conversation context. " +
-                      "Consider both the initial topic and any follow-up questions that were asked. Respond with JSON." 
-            },
-            ...conversationHistory,
-            { 
-              role: 'user', 
-              content: messages.length > 0 
-                ? `Previous topic was about ${messages[0].content}. Follow-up question: ${content}`
-                : content 
-            },
-            { 
-              role: 'user', 
-              content: "Based on our entire conversation, generate 5 relevant follow-up questions. Make sure they relate to both the initial topic and any follow-ups if they're connected. Respond with JSON." 
-            }
-          ],
-          model: "gpt-4o-mini",
-          stream: true,
-          response_format: { type: "json_object" },
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "get_related_questions",
-                description: "Get related follow-up questions based on conversation context",
-                parameters: {
-                  type: "object", 
-                  properties: {
-                    questions: {
-                      type: "array",
-                      description: "Array of 5 contextually relevant follow-up questions",
-                      items: {
-                        type: "string"
-                      },
-                      minItems: 5,
-                      maxItems: 5
-                    }
-                  },
-                  required: ["questions"]
-                }
-              }
-            }
-          ],
-          tool_choice: { type: "function", function: { name: "get_related_questions" } }
-        }, {
-          signal: controller.signal
-        })
-      ]);
-
-      // Process streams and update UI
-      let fullResponse = '';
-      let relatedResponse = '';
+      // Start both streams in parallel
       let lastUpdateTime = Date.now();
-      const UPDATE_INTERVAL = 50; // Throttle updates to prevent excessive re-renders
-
-      // Process both streams concurrently
-      await Promise.all([
-        // Handle main response stream
-        (async () => {
-          for await (const chunk of mainStream) {
-            const content = chunk.choices[0]?.delta?.content || '';
-            fullResponse += content;
-            
-            if (Date.now() - lastUpdateTime >= UPDATE_INTERVAL) {
-              updateLastMessage({
-                type: 'assistant',
-                content: fullResponse,
-                sources: [],
-                related: []
-              });
-              lastUpdateTime = Date.now();
-            }
-          }
-        })(),
-
-        // Handle related questions stream
-        (async () => {
-          for await (const chunk of relatedStream) {
-            if (chunk.choices[0]?.delta?.tool_calls?.[0]?.function?.arguments) {
-              relatedResponse += chunk.choices[0].delta.tool_calls[0].function.arguments;
-            }
-          }
-        })()
-      ]);
-
-      // Process final response
+      let fullResponse = '';
       let relatedQuestions = [
         "Tell me more about this topic",
         "What are the main benefits?",
@@ -365,9 +133,52 @@ function App() {
         "What are the limitations?"
       ];
 
+      // Process main response and related questions in parallel
+      const [mainResponse, relatedResponse] = await Promise.all([
+        // Main chat completion
+        createChatCompletion(
+          createMainChatMessages(
+            conversationHistory,
+            content,
+            searchContext,
+            messages[0]?.content
+          ),
+          {
+            handlers: {
+              onToken: (token) => {
+                fullResponse += token;
+                if (Date.now() - lastUpdateTime >= UPDATE_INTERVAL) {
+                  updateLastMessage({
+                    type: 'assistant',
+                    content: fullResponse,
+                    sources: [],
+                    related: []
+                  });
+                  lastUpdateTime = Date.now();
+                }
+              }
+            }
+          }
+        ),
+
+        // Related questions completion
+        createChatCompletion(
+          createRelatedQuestionsMessages(
+            conversationHistory,
+            content,
+            messages[0]?.content
+          ),
+          {
+            tools: [TOOLS.RELATED_QUESTIONS.tool],
+            toolChoice: { type: "function", function: { name: TOOLS.RELATED_QUESTIONS.name } }
+          }
+        )
+      ]);
+
+      // Process related questions response
       try {
-        if (relatedResponse) {
-          const parsedResponse = JSON.parse(relatedResponse);
+        if (relatedResponse.toolCallResponse) {
+          const parsedResponse = JSON.parse(relatedResponse.toolCallResponse);
           if (parsedResponse?.questions && Array.isArray(parsedResponse.questions)) {
             relatedQuestions = parsedResponse.questions;
           }
@@ -376,16 +187,19 @@ function App() {
         console.error('Error parsing related questions:', e);
       }
 
-      // Update final message with complete content
+      // Create sources from search results
+      const sources: SearchSource[] = searchResults.map(result => ({
+        id: result.url,
+        title: result.title,
+        url: result.url,
+        snippet: result.snippet
+      }));
+
+      // Update final message
       const finalMessage = {
         type: 'assistant' as const,
         content: fullResponse,
-        sources: searchResults?.length > 0 ? searchResults.map(result => ({
-          id: result.url,
-          title: result.title,
-          url: result.url,
-          snippet: result.snippet
-        })) : [],
+        sources,
         related: relatedQuestions
       };
       
