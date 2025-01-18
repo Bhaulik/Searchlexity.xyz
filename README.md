@@ -1,6 +1,7 @@
 # 🛠️ AI Tool Framework for Perplexility Type Application
 
 A modern, extensible framework for building AI applications with seamless tool and LLM integration.
+<img width="1511" alt="image" src="https://github.com/user-attachments/assets/15932897-a0f7-4f3b-bbfb-34b6d59399f5" />
 
 ## 🚀 Quick Start
 
