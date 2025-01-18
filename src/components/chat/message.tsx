@@ -39,6 +39,7 @@ export function Message({
   const [isFromRelated, setIsFromRelated] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isRewriting, setIsRewriting] = useState(false);
+  const [isShared, setIsShared] = useState(false);
 
   useEffect(() => {
     if (messageRef.current) {
@@ -117,9 +118,39 @@ export function Message({
     }
   };
 
+  const handleShare = async () => {
+    try {
+      // Get all messages in the thread
+      const chatContainer = messageRef.current?.closest('.overflow-y-auto');
+      if (!chatContainer) return;
+
+      const messages = chatContainer.querySelectorAll('[data-message]');
+      let shareText = "Conversation Thread:\n\n";
+
+      messages.forEach((msg) => {
+        const type = msg.getAttribute('data-message-type');
+        const content = msg.querySelector('h2, .prose')?.textContent || '';
+        
+        if (type === 'user') {
+          shareText += `Q: ${content}\n\n`;
+        } else {
+          shareText += `A: ${content}\n\n`;
+        }
+      });
+
+      await navigator.clipboard.writeText(shareText);
+      setIsShared(true);
+      setTimeout(() => setIsShared(false), 2000);
+    } catch (err) {
+      console.error('Failed to share conversation:', err);
+    }
+  };
+
   return (
     <div 
       ref={messageRef}
+      data-message
+      data-message-type={type}
       className={cn(
         "px-4 md:px-6 py-4",
         type === 'user' ? '' : 'bg-transparent'
@@ -356,9 +387,12 @@ export function Message({
 
           {/* Actions */}
           <div className="flex flex-wrap items-center gap-4 text-perplexity-muted mt-2">
-            <button className="flex items-center gap-2 hover:text-perplexity-text transition-colors">
+            <button 
+              onClick={handleShare}
+              className="flex items-center gap-2 hover:text-perplexity-text transition-colors"
+            >
               <Share className="w-4 h-4" />
-              <span className="text-sm">Share</span>
+              <span className="text-sm">{isShared ? "Copied!" : "Share"}</span>
             </button>
             {(type as MessageProps['type']) === 'assistant' && (
               <button 
