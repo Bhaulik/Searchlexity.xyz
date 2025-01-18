@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
+import OpenAI from 'openai';
+import { motion, AnimatePresence } from "framer-motion";
+import { Globe } from 'lucide-react';
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+
 import { Message } from './components/chat/message';
 import { ChatInput } from './components/chat/chat-input';
 import { Sidebar } from './components/sidebar';
 import { DiscoverPage } from './components/discover/discover-page';
 import { NewThreadDialog } from './components/new-thread-dialog';
+
 import { useSearchStore } from './store/search-store';
-import OpenAI from 'openai';
-import { motion, AnimatePresence } from "framer-motion";
-import { Globe } from 'lucide-react';
-import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { getRecentThreads, updateRecentThread } from './lib/utils';
 
 const openai = new OpenAI({
@@ -31,6 +33,21 @@ interface TavilySearchResult {
   domain: string;
 }
 
+type Page = 'home' | 'discover' | 'spaces' | 'library';
+
+interface WebSearchOptions {
+  search_depth?: "basic" | "advanced";
+  include_images?: boolean;
+  include_answer?: boolean;
+  max_results?: number;
+}
+
+/**
+ * Determines whether a web search is necessary for a given query
+ * Uses GPT to analyze if the query requires real-time or factual information
+ * @param query - The user's search query
+ * @returns Promise<boolean> - Whether a web search should be performed
+ */
 async function shouldPerformWebSearch(query: string): Promise<boolean> {
   try {
     const response = await openai.chat.completions.create({
@@ -57,7 +74,21 @@ async function shouldPerformWebSearch(query: string): Promise<boolean> {
   }
 }
 
-async function searchWeb(query: string): Promise<TavilySearchResult[]> {
+/**
+ * Performs a web search using the Tavily API
+ * @param query - The search query
+ * @param options - Optional search configuration
+ * @returns Promise<TavilySearchResult[]> - Array of search results
+ */
+async function searchWeb(
+  query: string, 
+  options: WebSearchOptions = {
+    search_depth: "advanced",
+    include_images: false,
+    include_answer: false,
+    max_results: 5
+  }
+): Promise<TavilySearchResult[]> {
   if (!TAVILY_API_KEY) {
     console.warn('Tavily API key not found. Skipping web search.');
     return [];
@@ -79,10 +110,7 @@ async function searchWeb(query: string): Promise<TavilySearchResult[]> {
       },
       body: JSON.stringify({
         query,
-        search_depth: "advanced",
-        include_images: false,
-        include_answer: false,
-        max_results: 5
+        ...options
       })
     });
 
@@ -104,59 +132,81 @@ async function searchWeb(query: string): Promise<TavilySearchResult[]> {
   }
 }
 
-type Page = 'home' | 'discover' | 'spaces' | 'library';
+interface AppState {
+  lastQuery: string;
+  currentPage: Page;
+  isNewThreadOpen: boolean;
+  currentThreadId: string | null;
+  abortController: AbortController | null;
+}
 
+/**
+ * Main application component that handles chat functionality and navigation
+ */
 function App() {
-  const { messages = [], isLoading, addMessage, updateLastMessage, setLoading } = useSearchStore(state => ({
+  // Get store state and actions
+  const { 
+    messages = [], 
+    isLoading, 
+    addMessage, 
+    updateLastMessage, 
+    setLoading 
+  } = useSearchStore(state => ({
     messages: state.messages,
     isLoading: state.isLoading,
     addMessage: state.addMessage,
     updateLastMessage: state.updateLastMessage,
     setLoading: state.setLoading
   }));
-  const [lastQuery, setLastQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState<Page>('home');
-  const [isNewThreadOpen, setIsNewThreadOpen] = useState(false);
-  const [abortController, setAbortController] = useState<AbortController | null>(null);
-  const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
 
+  // Local state
+  const [state, setState] = useState<AppState>({
+    lastQuery: '',
+    currentPage: 'home',
+    isNewThreadOpen: false,
+    currentThreadId: null,
+    abortController: null
+  });
+
+  /**
+   * Stops any ongoing API requests
+   */
   const handleStop = () => {
-    if (abortController) {
-      abortController.abort();
-      setAbortController(null);
+    if (state.abortController) {
+      state.abortController.abort();
+      setState(prev => ({ ...prev, abortController: null }));
       setLoading(false);
     }
   };
 
+  /**
+   * Handles submission of new messages and manages the chat flow
+   * @param content - The message content from the user
+   */
   const handleSubmit = async (content: string) => {
     // Abort any existing request
-    if (abortController) {
-      abortController.abort();
+    if (state.abortController) {
+      state.abortController.abort();
     }
 
     // Create new abort controller
     const controller = new AbortController();
-    setAbortController(controller);
+    setState(prev => ({ 
+      ...prev, 
+      lastQuery: content,
+      abortController: controller 
+    }));
     
-    setLastQuery(content);
     setLoading(true);
     
-    // Save initial message if this is a new thread
-    if (messages.length === 0) {
-      addMessage({ 
-        type: 'user', 
-        content
-      });
-    } else {
-      // For follow-up questions, add to existing thread
-      addMessage({ 
-        type: 'user', 
-        content
-      });
-    }
+    // Add user message to the chat
+    addMessage({ 
+      type: 'user', 
+      content
+    });
     
     try {
-      // Add empty assistant message immediately
+      // Add empty assistant message immediately for streaming
       addMessage({
         type: 'assistant',
         content: '',
@@ -164,7 +214,7 @@ function App() {
         related: []
       });
 
-      // Search the web first
+      // Search the web if needed
       let searchResults: TavilySearchResult[] = [];
       let searchContext = '';
       
@@ -179,7 +229,7 @@ function App() {
         console.error('Web search failed:', searchError);
       }
 
-      // Get all previous messages for context
+      // Prepare conversation history for context
       const conversationHistory = messages.slice(0, -1).map(msg => ({
         role: msg.type === 'user' ? 'user' as const : 'assistant' as const,
         content: msg.type === 'assistant' 
@@ -187,8 +237,9 @@ function App() {
           : msg.content
       }));
 
-      // Start both streams in parallel
+      // Start both streams in parallel for efficiency
       const [mainStream, relatedStream] = await Promise.all([
+        // Main response stream for the answer
         openai.chat.completions.create({
           messages: [
             { 
@@ -215,6 +266,8 @@ function App() {
         }, {
           signal: controller.signal
         }),
+
+        // Related questions stream
         openai.chat.completions.create({
           messages: [
             { 
@@ -267,20 +320,20 @@ function App() {
         })
       ]);
 
+      // Process streams and update UI
       let fullResponse = '';
       let relatedResponse = '';
       let lastUpdateTime = Date.now();
-      const UPDATE_INTERVAL = 50; // Update UI every 50ms at most
+      const UPDATE_INTERVAL = 50; // Throttle updates to prevent excessive re-renders
 
       // Process both streams concurrently
       await Promise.all([
-        // Main response stream
+        // Handle main response stream
         (async () => {
           for await (const chunk of mainStream) {
             const content = chunk.choices[0]?.delta?.content || '';
             fullResponse += content;
             
-            // Throttle updates to prevent excessive re-renders
             if (Date.now() - lastUpdateTime >= UPDATE_INTERVAL) {
               updateLastMessage({
                 type: 'assistant',
@@ -293,7 +346,7 @@ function App() {
           }
         })(),
 
-        // Related questions stream - accumulate tool call response
+        // Handle related questions stream
         (async () => {
           for await (const chunk of relatedStream) {
             if (chunk.choices[0]?.delta?.tool_calls?.[0]?.function?.arguments) {
@@ -303,7 +356,7 @@ function App() {
         })()
       ]);
 
-      // After both streams complete, parse and update with related questions
+      // Process final response
       let relatedQuestions = [
         "Tell me more about this topic",
         "What are the main benefits?",
@@ -315,16 +368,15 @@ function App() {
       try {
         if (relatedResponse) {
           const parsedResponse = JSON.parse(relatedResponse);
-          if (parsedResponse?.questions && Array.isArray(parsedResponse.questions) && parsedResponse.questions.length > 0) {
+          if (parsedResponse?.questions && Array.isArray(parsedResponse.questions)) {
             relatedQuestions = parsedResponse.questions;
           }
         }
       } catch (e) {
         console.error('Error parsing related questions:', e);
-        console.log('Raw response:', relatedResponse);
       }
 
-      // Final update with complete content and questions
+      // Update final message with complete content
       const finalMessage = {
         type: 'assistant' as const,
         content: fullResponse,
@@ -339,19 +391,14 @@ function App() {
       
       updateLastMessage(finalMessage);
 
-      // Get all messages including the new ones
-      const allMessages = [
-        ...messages, // Include all existing messages
-        { type: 'user' as const, content },
-        finalMessage
-      ];
-
-      // Create new thread if none exists, otherwise update existing
-      if (!currentThreadId) {
+      // Update thread history
+      const allMessages = [...messages, { type: 'user' as const, content }, finalMessage];
+      
+      if (!state.currentThreadId) {
         const threads = updateRecentThread(null, content, allMessages);
-        setCurrentThreadId(threads[0].id);
+        setState(prev => ({ ...prev, currentThreadId: threads[0].id }));
       } else {
-        updateRecentThread(currentThreadId, messages[0]?.content || content, allMessages);
+        updateRecentThread(state.currentThreadId, messages[0]?.content || content, allMessages);
       }
 
     } catch (error) {
@@ -367,42 +414,53 @@ function App() {
     }
   };
 
+  /**
+   * Handles navigation between different pages
+   * @param page - The target page to navigate to
+   */
   const handlePageChange = (page: Page) => {
-    setCurrentPage(page);
+    setState(prev => ({ ...prev, currentPage: page }));
     if (page === 'home') {
       useSearchStore.getState().clearMessages();
     }
   };
 
+  /**
+   * Opens the new thread dialog
+   */
   const handleNewThread = () => {
-    setIsNewThreadOpen(true);
+    setState(prev => ({ ...prev, isNewThreadOpen: true }));
   };
 
+  /**
+   * Handles clicks on related questions
+   * @param question - The selected related question
+   */
   const handleRelatedClick = (question: string) => {
     handleSubmit(question);
   };
 
   return (
     <div className="flex h-screen bg-perplexity-bg text-perplexity-text">
+      {/* Sidebar */}
       <div className="hidden md:block">
         <Sidebar 
-          currentPage={currentPage} 
+          currentPage={state.currentPage} 
           onPageChange={handlePageChange}
           onNewThread={handleNewThread}
         />
       </div>
       
+      {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        {currentPage === 'discover' ? (
+        {state.currentPage === 'discover' ? (
           <DiscoverPage />
-        ) : currentPage === 'home' && messages.length === 0 ? (
+        ) : state.currentPage === 'home' && messages.length === 0 ? (
           <div className="flex-1 flex items-center justify-center p-4 bg-gradient-to-b from-transparent to-perplexity-card/20">
             <div className="w-full max-w-2xl mx-auto space-y-8 px-4">
               <div className="space-y-4 text-center">
                 <motion.div
-                  animate={{ 
-                    rotate: 360,
-                  }}
+                  animate={{ rotate: 360 }}
                   transition={{ 
                     duration: 20,
                     repeat: Infinity,
@@ -420,12 +478,17 @@ function App() {
                 </p>
               </div>
               <div className="transform transition-all duration-300 hover:scale-[1.02]">
-                <ChatInput onSubmit={handleSubmit} disabled={isLoading} onStop={handleStop} />
+                <ChatInput 
+                  onSubmit={handleSubmit} 
+                  disabled={isLoading} 
+                  onStop={handleStop} 
+                />
               </div>
             </div>
           </div>
         ) : (
           <>
+            {/* Chat Messages */}
             <div className="flex-1 overflow-y-auto">
               <div className="max-w-3xl mx-auto p-4 md:p-6">
                 <div className="space-y-6">
@@ -444,9 +507,7 @@ function App() {
                       className="flex justify-center p-4"
                     >
                       <motion.div
-                        animate={{ 
-                          rotate: 360,
-                        }}
+                        animate={{ rotate: 360 }}
                         transition={{ 
                           duration: 2,
                           repeat: Infinity,
@@ -462,6 +523,7 @@ function App() {
               </div>
             </div>
 
+            {/* Chat Input */}
             <div className="sticky bottom-0 bg-perplexity-bg border-t border-perplexity-card p-4">
               <div className="max-w-3xl mx-auto">
                 <ChatInput 
@@ -475,6 +537,7 @@ function App() {
           </>
         )}
 
+        {/* Footer */}
         <footer className="hidden md:block border-t border-perplexity-card py-4 px-6">
           <div className="flex items-center justify-between text-sm text-perplexity-muted">
             <div className="flex gap-4">
@@ -490,9 +553,10 @@ function App() {
         </footer>
       </main>
 
+      {/* New Thread Dialog */}
       <NewThreadDialog 
-        isOpen={isNewThreadOpen}
-        onClose={() => setIsNewThreadOpen(false)}
+        isOpen={state.isNewThreadOpen}
+        onClose={() => setState(prev => ({ ...prev, isNewThreadOpen: false }))}
         onSubmit={handleSubmit}
       />
     </div>
