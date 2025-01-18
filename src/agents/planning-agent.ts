@@ -67,7 +67,7 @@ export class PlanningAgent implements Agent {
       toolChoice: { type: "function", function: { name: "plan" } },
       handlers: {
         onToolCall: (chunk) => {
-          console.log('Tool call chunk:', chunk);
+        //   console.log('Tool call chunk:', chunk);
         }
       }
     });

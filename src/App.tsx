@@ -147,8 +147,10 @@ function App() {
           }
         );
 
+        // Get current messages without the last assistant message
+        const currentMessages = messages.slice(0, -1);
+
         // Replace the loading message with final result
-        const lastMessageIndex = messages.length;
         const finalMessage = {
           type: 'assistant' as const,
           content: result.answer,
@@ -167,11 +169,43 @@ function App() {
           ],
           steps: result.steps
         };
+
+        // Update messages with both user question and final answer
         useSearchStore.getState().setMessages([
-          ...messages.slice(0, lastMessageIndex),
+          ...currentMessages,
+          { type: 'user', content },
           finalMessage
         ]);
+
+        // Update thread history with complete messages
+        const allMessages = [
+          ...messages.slice(0, -1),
+          { 
+            type: 'user' as const, 
+            content,
+            sources: [],
+            related: [],
+            steps: []
+          },
+          finalMessage
+        ];
+        
+        if (!state.currentThreadId) {
+          const threads = updateRecentThread(null, content, allMessages);
+          setState(prev => ({ ...prev, currentThreadId: threads[0].id }));
+        } else {
+          updateRecentThread(state.currentThreadId, messages[0]?.content || content, allMessages);
+        }
+
       } else {
+        // Add empty assistant message for streaming
+        addMessage({
+          type: 'assistant',
+          content: '',
+          sources: [],
+          related: []
+        });
+
         // Use standard processing with streaming
         let searchResults = await searchWeb(content);
         let searchContext = searchResults.length > 0 ? formatSearchContext(searchResults) : '';
@@ -266,16 +300,37 @@ function App() {
           })),
           related: relatedQuestions
         });
-      }
 
-      // Update thread history
-      const allMessages = [...messages, { type: 'user' as const, content }];
-      
-      if (!state.currentThreadId) {
-        const threads = updateRecentThread(null, content, allMessages);
-        setState(prev => ({ ...prev, currentThreadId: threads[0].id }));
-      } else {
-        updateRecentThread(state.currentThreadId, messages[0]?.content || content, allMessages);
+        // Update thread history with complete messages
+        const allMessages = [
+          ...messages.slice(0, -1),
+          { 
+            type: 'user' as const, 
+            content,
+            sources: [],
+            related: [],
+            steps: []
+          },
+          {
+            type: 'assistant' as const,
+            content: fullResponse,
+            sources: searchResults.map(result => ({
+              id: result.url,
+              title: result.title,
+              url: result.url,
+              snippet: result.snippet
+            })),
+            related: relatedQuestions,
+            steps: []
+          }
+        ];
+        
+        if (!state.currentThreadId) {
+          const threads = updateRecentThread(null, content, allMessages);
+          setState(prev => ({ ...prev, currentThreadId: threads[0].id }));
+        } else {
+          updateRecentThread(state.currentThreadId, messages[0]?.content || content, allMessages);
+        }
       }
 
     } catch (error) {
@@ -293,12 +348,31 @@ function App() {
 
   /**
    * Handles navigation between different pages
-   * @param page - The target page to navigate to
    */
   const handlePageChange = (page: Page) => {
     setState(prev => ({ ...prev, currentPage: page }));
     if (page === 'home') {
-      useSearchStore.getState().clearMessages();
+      const recentThreads = getRecentThreads();
+      if (recentThreads.length > 0) {
+        const latestThread = recentThreads[0];
+        setState(prev => ({ 
+          ...prev, 
+          currentThreadId: latestThread.id 
+        }));
+        
+        // Properly type and format the messages
+        const typedMessages = latestThread.messages.map(msg => ({
+          ...msg,
+          type: msg.type as 'user' | 'assistant',
+          sources: msg.sources || [],
+          related: msg.related || [],
+          steps: msg.steps || []
+        }));
+        
+        useSearchStore.getState().setMessages(typedMessages);
+      } else {
+        useSearchStore.getState().clearMessages();
+      }
     }
   };
 
@@ -306,7 +380,12 @@ function App() {
    * Opens the new thread dialog
    */
   const handleNewThread = () => {
-    setState(prev => ({ ...prev, isNewThreadOpen: true }));
+    setState(prev => ({ 
+      ...prev, 
+      isNewThreadOpen: true,
+      currentThreadId: null 
+    }));
+    useSearchStore.getState().clearMessages();
   };
 
   /**

@@ -16,9 +16,19 @@ export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps
   const { isSidebarCollapsed, toggleSidebar, setMessages, clearMessages } = useSearchStore();
   const [recentThreads, setRecentThreads] = useState(getRecentThreads());
 
-  const handleThreadClick = (thread: ReturnType<typeof getRecentThreads>[0]) => {
+  const handleThreadClick = (thread: { id: string; title: string; messages: any[] }) => {
+    clearMessages();
+    
+    const typedMessages = thread.messages.map(msg => ({
+      ...msg,
+      type: msg.type as 'user' | 'assistant',
+      sources: msg.sources || [],
+      related: msg.related || [],
+      steps: msg.steps || []
+    }));
+    
+    setMessages(typedMessages);
     onPageChange('home');
-    setMessages(thread.messages);
   };
 
   const handleClearHistory = () => {
@@ -29,10 +39,13 @@ export function Sidebar({ currentPage, onPageChange, onNewThread }: SidebarProps
   };
 
   useEffect(() => {
-    setRecentThreads(getRecentThreads());
-    const interval = setInterval(() => {
+    const updateThreads = () => {
       setRecentThreads(getRecentThreads());
-    }, 60000);
+    };
+
+    updateThreads();
+
+    const interval = setInterval(updateThreads, 60000);
     return () => clearInterval(interval);
   }, []);
 
