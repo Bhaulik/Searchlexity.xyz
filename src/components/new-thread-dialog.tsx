@@ -36,38 +36,40 @@ export function NewThreadDialog({ isOpen, onClose, onSubmit }: NewThreadDialogPr
       onClose={onClose}
       className="relative z-50"
     >
-      <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
       
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="mx-auto max-w-2xl w-full rounded-lg bg-perplexity-bg p-6 shadow-xl">
-          <Dialog.Title className="text-lg font-medium mb-4">
-            Start a New Thread
-          </Dialog.Title>
+        <Dialog.Panel className="mx-auto max-w-2xl w-full rounded-xl bg-perplexity-bg shadow-xl border border-perplexity-card">
+          <div className="p-6">
+            <Dialog.Title className="text-xl font-medium text-perplexity-text mb-4">
+              Start a New Thread
+            </Dialog.Title>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">
-              Select Language
-            </label>
-            <select
-              value={selectedLanguage}
-              onChange={(e) => setSelectedLanguage(e.target.value)}
-              className="w-full rounded-lg bg-perplexity-card border border-perplexity-card p-2 text-perplexity-text"
-            >
-              {LANGUAGES.map((lang) => (
-                <option key={lang.code} value={lang.code}>
-                  {lang.flag} {lang.name}
-                </option>
-              ))}
-            </select>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-perplexity-text mb-2">
+                Select Language
+              </label>
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                className="w-full rounded-lg bg-perplexity-card border border-perplexity-card p-3 text-perplexity-text focus:ring-2 focus:ring-perplexity-accent/50 outline-none"
+              >
+                {LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.flag} {lang.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <ChatInput
+              onSubmit={(content) => {
+                onSubmit(content, selectedLanguage);
+                onClose();
+              }}
+              isNewThread
+            />
           </div>
-
-          <ChatInput
-            onSubmit={(content) => {
-              onSubmit(content, selectedLanguage);
-              onClose();
-            }}
-            isNewThread
-          />
         </Dialog.Panel>
       </div>
     </Dialog>

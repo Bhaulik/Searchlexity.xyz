@@ -96,7 +96,7 @@ export function ChatInput({
         onChange={(e) => setInput(e.target.value)}
         placeholder={isFollowUp ? "Ask a follow-up question..." : "Ask anything..."}
         className={cn(
-          "w-full bg-perplexity-card rounded-lg pl-4 pr-36 py-3 outline-none",
+          "w-full bg-perplexity-card rounded-lg pl-4 pr-36 py-3 outline-none text-perplexity-text",
           "placeholder:text-perplexity-muted",
           "focus:ring-2 focus:ring-perplexity-accent/50",
           disabled && "opacity-50 cursor-not-allowed"
